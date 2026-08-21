@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const API = "https://tradenex-backend-qpp9.onrender.com";
+const API = "https://tradenex-api.onrender.com";
 
 const money = (n) =>
   `$${Number(n || 0).toLocaleString("en-US", {
