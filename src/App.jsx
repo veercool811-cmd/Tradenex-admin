@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const API = "https://tradenex-backend-qpp9.onrender.com";
+const API = "https://tradenex-backend-8jl7.onrender.com";
 
 const money = (n) =>
   `$${Number(n || 0).toLocaleString("en-US", {
@@ -20,7 +20,10 @@ async function api(path, options = {}) {
     },
   });
 
-  const json = await res.json();
+  const json = await res.json().catch(() => ({
+    success: false,
+    message: "Invalid server response.",
+  }));
 
   if (!res.ok) {
     throw new Error(
@@ -72,9 +75,7 @@ function App() {
 
       setUsers(usersRes.users || []);
       setDeposits(depositsRes.deposits || []);
-      setWithdrawals(
-        withdrawalsRes.withdrawals || []
-      );
+      setWithdrawals(withdrawalsRes.withdrawals || []);
       setTransactions(
         transactionsRes.transactions || []
       );
@@ -646,13 +647,14 @@ function Users({ users }) {
                       {u.name ||
                         `${u.firstName || ""} ${
                           u.lastName || ""
-                        }`}
+                        }`.trim() ||
+                        "User"}
                     </b>
 
                     <small>{u.id}</small>
                   </td>
 
-                  <td>{u.email}</td>
+                  <td>{u.email || "-"}</td>
 
                   <td>
                     {u.mobile ||
@@ -873,7 +875,6 @@ function Deposits({
 
 /* =====================================================
    PAYMENT PROOF
-   SMALL THUMBNAIL
 ===================================================== */
 
 function PaymentProof({ proof }) {
@@ -912,10 +913,6 @@ function PaymentProof({ proof }) {
         style={{
           width: "80px",
           height: "80px",
-          maxWidth: "80px",
-          maxHeight: "80px",
-          minWidth: "80px",
-          minHeight: "80px",
           objectFit: "cover",
           display: "block",
           borderRadius: "8px",
@@ -940,7 +937,6 @@ function PaymentProof({ proof }) {
         }
         style={{
           width: "80px",
-          maxWidth: "80px",
           padding: "5px 3px",
           fontSize: "11px",
           lineHeight: "14px",
@@ -1216,7 +1212,13 @@ function Rewards({ users }) {
                 return (
                   <tr key={u.id}>
                     <td>
-                      <b>{u.name}</b>
+                      <b>
+                        {u.name ||
+                          `${u.firstName || ""} ${
+                            u.lastName || ""
+                          }`.trim() ||
+                          "User"}
+                      </b>
 
                       <small>
                         {u.email}
@@ -1297,11 +1299,11 @@ function Transactions({
             <tbody>
               {transactions.map((tx) => (
                 <tr key={tx.id}>
-                  <td>{tx.txnId}</td>
+                  <td>{tx.txnId || "-"}</td>
 
-                  <td>{tx.userId}</td>
+                  <td>{tx.userId || "-"}</td>
 
-                  <td>{tx.type}</td>
+                  <td>{tx.type || "-"}</td>
 
                   <td>
                     {tx.network ||
