@@ -1343,6 +1343,61 @@ function Transactions({
 ===================================================== */
 
 function Support({ tickets }) {
+  const [items, setItems] = useState(tickets || []);
+  const [selected, setSelected] = useState(null);
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  async function sendReply() {
+    if (!selected || !reply.trim()) {
+      return;
+    }
+
+    setSending(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const data = await api(
+        `/api/admin/support/${selected.id}/reply`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            reply: reply.trim(),
+          }),
+        }
+      );
+
+      if (!data.success) {
+        throw new Error(
+          data.message || "Reply failed."
+        );
+      }
+
+      const updated = data.ticket;
+
+      setItems((prev) =>
+        prev.map((ticket) =>
+          String(ticket.id) === String(updated.id)
+            ? updated
+            : ticket
+        )
+      );
+
+      setSelected(updated);
+      setReply("");
+      setSuccess("Reply sent successfully.");
+    } catch (err) {
+      setError(
+        err.message || "Unable to send reply."
+      );
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <div className="admin-panel">
       <div className="admin-panel-head">
@@ -1351,17 +1406,29 @@ function Support({ tickets }) {
         </h3>
 
         <span>
-          {tickets.length} tickets
+          {items.length} tickets
         </span>
       </div>
 
-      {!tickets.length ? (
+      {error && (
+        <div className="error-box">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="success-box">
+          {success}
+        </div>
+      )}
+
+      {!items.length ? (
         <div className="admin-empty">
           No support tickets.
         </div>
       ) : (
         <div className="support-list">
-          {tickets.map((ticket) => (
+          {items.map((ticket) => (
             <div
               className="support-card"
               key={ticket.id}
@@ -1380,9 +1447,159 @@ function Support({ tickets }) {
                 {ticket.message}
               </p>
 
-              <Status
-                status={ticket.status}
-              />
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginTop: "10px",
+                }}
+              >
+                <Status
+                  status={ticket.status}
+                />
+
+                <button
+                  type="button"
+                  className="primary-btn"
+                  onClick={() => {
+                    setSelected(ticket);
+                    setReply("");
+                    setError("");
+                    setSuccess("");
+                  }}
+                >
+                  Open
+                </button>
+              </div>
+
+              {selected &&
+                String(selected.id) ===
+                  String(ticket.id) && (
+                  <div
+                    style={{
+                      marginTop: "15px",
+                      paddingTop: "15px",
+                      borderTop:
+                        "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <h4>
+                      Ticket Chat
+                    </h4>
+
+                    <div
+                      style={{
+                        maxHeight: "260px",
+                        overflowY: "auto",
+                        marginBottom: "12px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          padding: "10px",
+                          marginBottom: "8px",
+                          borderRadius: "8px",
+                          background:
+                            "rgba(255,255,255,0.04)",
+                        }}
+                      >
+                        <small>
+                          USER
+                        </small>
+
+                        <p>
+                          {selected.message}
+                        </p>
+                      </div>
+
+                      {Array.isArray(
+                        selected.replies
+                      ) &&
+                        selected.replies.map(
+                          (item) => (
+                            <div
+                              key={item.id}
+                              style={{
+                                padding: "10px",
+                                marginBottom:
+                                  "8px",
+                                borderRadius:
+                                  "8px",
+                                background:
+                                  "rgba(30,120,255,0.10)",
+                              }}
+                            >
+                              <small>
+                                ADMIN
+                              </small>
+
+                              <p>
+                                {item.message}
+                              </p>
+
+                              <small>
+                                {item.createdAt
+                                  ? new Date(
+                                      item.createdAt
+                                    ).toLocaleString()
+                                  : ""}
+                              </small>
+                            </div>
+                          )
+                        )}
+                    </div>
+
+                    <textarea
+                      rows="4"
+                      placeholder="Write reply to user..."
+                      value={reply}
+                      onChange={(e) =>
+                        setReply(e.target.value)
+                      }
+                      disabled={sending}
+                      style={{
+                        width: "100%",
+                        boxSizing: "border-box",
+                        marginBottom: "10px",
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="primary-btn"
+                        onClick={sendReply}
+                        disabled={
+                          sending ||
+                          !reply.trim()
+                        }
+                      >
+                        {sending
+                          ? "Sending..."
+                          : "Send Reply"}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="secondary-btn"
+                        onClick={() => {
+                          setSelected(null);
+                          setReply("");
+                          setError("");
+                          setSuccess("");
+                        }}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
             </div>
           ))}
         </div>
