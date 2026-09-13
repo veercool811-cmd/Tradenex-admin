@@ -52,6 +52,7 @@ function App() {
 
   const [selectedUser, setSelectedUser] = useState(null);
   const [userModal, setUserModal] = useState("");
+  const [statementUser, setStatementUser] = useState(null);
   const [userForm, setUserForm] = useState({
     name: "",
     email: "",
@@ -118,6 +119,224 @@ function App() {
       password: "",
     });
     setUserModal("edit");
+  }
+
+  function openUserStatement(user) {
+    setStatementUser(user);
+    setUserModal("statement");
+  }
+
+  function closeUserStatement() {
+    setStatementUser(null);
+    setUserModal("");
+  }
+
+  function printUserStatement() {
+    if (!statementUser) return;
+
+    const uid = statementUser.id;
+
+    const userDeposits = deposits
+      .filter((d) => d.userId === uid)
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    const userWithdrawals = withdrawals
+      .filter((w) => w.userId === uid)
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    const userTransactions = transactions
+      .filter((t) => t.userId === uid)
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    const name =
+      statementUser.name ||
+      `${statementUser.firstName || ""} ${statementUser.lastName || ""}`.trim() ||
+      "User";
+
+    const moneyValue = (value) =>
+      `$${Number(value || 0).toFixed(2)}`;
+
+    const dateValue = (value) =>
+      value ? new Date(value).toLocaleString() : "-";
+
+    const rows = userTransactions.length
+      ? userTransactions.map((t) => `
+          <tr>
+            <td>${dateValue(t.createdAt)}</td>
+            <td>${t.type || "-"}</td>
+            <td>${t.method || t.network || "-"}</td>
+            <td>${t.status || "-"}</td>
+            <td>${moneyValue(t.amount)}</td>
+          </tr>
+        `).join("")
+      : `
+          <tr>
+            <td colspan="5" style="text-align:center">No transaction records found.</td>
+          </tr>
+        `;
+
+    const win = window.open("", "_blank", "width=1000,height=800");
+
+    if (!win) {
+      setMessage("Please allow pop-ups to download the statement.");
+      return;
+    }
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Tradenex Account Statement - ${name}</title>
+        <style>
+          * { box-sizing: border-box; }
+          body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 32px;
+            color: #111827;
+            background: #fff;
+          }
+          .head {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #111827;
+            padding-bottom: 18px;
+            margin-bottom: 22px;
+          }
+          .brand {
+            font-size: 28px;
+            font-weight: 800;
+          }
+          .sub {
+            color: #6b7280;
+            margin-top: 5px;
+          }
+          .user {
+            text-align: right;
+            font-size: 13px;
+          }
+          .cards {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 25px;
+          }
+          .card {
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 14px;
+          }
+          .label {
+            color: #6b7280;
+            font-size: 11px;
+            margin-bottom: 7px;
+          }
+          .value {
+            font-size: 17px;
+            font-weight: 700;
+          }
+          h2 {
+            font-size: 18px;
+            margin: 24px 0 10px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+          }
+          th, td {
+            border: 1px solid #d1d5db;
+            padding: 9px;
+            text-align: left;
+          }
+          th {
+            background: #f3f4f6;
+          }
+          .footer {
+            margin-top: 30px;
+            padding-top: 12px;
+            border-top: 1px solid #d1d5db;
+            color: #6b7280;
+            font-size: 11px;
+          }
+          @media print {
+            body { padding: 18px; }
+            @page { size: A4; margin: 12mm; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="head">
+          <div>
+            <div class="brand">TRADENEX</div>
+            <div class="sub">Official Account Statement</div>
+          </div>
+          <div class="user">
+            <b>${name}</b><br>
+            User ID: ${uid}<br>
+            ${statementUser.email || "-"}<br>
+            ${statementUser.mobile || statementUser.phone || "-"}
+          </div>
+        </div>
+
+        <div class="cards">
+          <div class="card">
+            <div class="label">TOTAL DEPOSIT</div>
+            <div class="value">${moneyValue(statementUser.balance !== undefined ? statementUser.totalDeposit : userDeposits.filter(d => d.status === "Approved").reduce((a,d) => a + Number(d.amount || 0), 0))}</div>
+          </div>
+
+          <div class="card">
+            <div class="label">TOTAL PROFIT</div>
+            <div class="value">${moneyValue(statementUser.profit)}</div>
+          </div>
+
+          <div class="card">
+            <div class="label">TOTAL WITHDRAWAL</div>
+            <div class="value">${moneyValue(userWithdrawals.filter(w => w.status === "Approved").reduce((a,w) => a + Number(w.amount || 0), 0))}</div>
+          </div>
+
+          <div class="card">
+            <div class="label">REFERRAL REWARD</div>
+            <div class="value">${moneyValue(statementUser.referralReward)}</div>
+          </div>
+
+          <div class="card">
+            <div class="label">CURRENT BALANCE</div>
+            <div class="value">${moneyValue(statementUser.balance)}</div>
+          </div>
+        </div>
+
+        <h2>Transaction History</h2>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Method / Network</th>
+              <th>Status</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+
+        <div class="footer">
+          Generated by Tradenex Admin • ${new Date().toLocaleString()}
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 400);
+          };
+        </script>
+      </body>
+      </html>
+    `);
+
+    win.document.close();
   }
 
   async function saveUserEdit() {
@@ -544,6 +763,7 @@ function App() {
             <Users
               users={users}
               openUserEdit={openUserEdit}
+              openUserStatement={openUserStatement}
               openUserPassword={(user) => {
                 setSelectedUser(user);
                 setUserForm((f) => ({
@@ -724,6 +944,223 @@ function App() {
           </div>
         </div>
       )}
+      {userModal === "statement" && statementUser && (
+        <div
+          className="admin-modal-backdrop"
+          onClick={closeUserStatement}
+        >
+          <div
+            className="admin-modal"
+            style={{ maxWidth: "1100px", width: "96%" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="admin-modal-head">
+              <div>
+                <h2>Account Statement</h2>
+                <p>
+                  {statementUser.name ||
+                    `${statementUser.firstName || ""} ${
+                      statementUser.lastName || ""
+                    }`.trim() ||
+                    "User"}
+                  {" • "}
+                  {statementUser.id}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeUserStatement}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div
+              className="admin-stats"
+              style={{
+                gridTemplateColumns:
+                  "repeat(auto-fit,minmax(150px,1fr))",
+                marginBottom: "20px",
+              }}
+            >
+              <AdminStat
+                icon="💰"
+                title="Total Deposit"
+                value={money(
+                  deposits
+                    .filter(
+                      (d) =>
+                        d.userId === statementUser.id &&
+                        d.status === "Approved"
+                    )
+                    .reduce(
+                      (sum, d) =>
+                        sum + Number(d.amount || 0),
+                      0
+                    )
+                )}
+              />
+
+              <AdminStat
+                icon="📈"
+                title="Total Profit"
+                value={money(statementUser.profit)}
+              />
+
+              <AdminStat
+                icon="💸"
+                title="Total Withdrawal"
+                value={money(
+                  withdrawals
+                    .filter(
+                      (w) =>
+                        w.userId === statementUser.id &&
+                        w.status === "Approved"
+                    )
+                    .reduce(
+                      (sum, w) =>
+                        sum + Number(w.amount || 0),
+                      0
+                    )
+                )}
+              />
+
+              <AdminStat
+                icon="🎁"
+                title="Referral Reward"
+                value={money(
+                  statementUser.referralReward
+                )}
+              />
+
+              <AdminStat
+                icon="💵"
+                title="Current Balance"
+                value={money(statementUser.balance)}
+              />
+            </div>
+
+            <div className="admin-panel">
+              <div className="admin-panel-head">
+                <h3>Transaction History</h3>
+                <span>
+                  {
+                    transactions.filter(
+                      (t) =>
+                        t.userId ===
+                        statementUser.id
+                    ).length
+                  } records
+                </span>
+              </div>
+
+              <div className="admin-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Type</th>
+                      <th>Method</th>
+                      <th>Status</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {transactions
+                      .filter(
+                        (t) =>
+                          t.userId ===
+                          statementUser.id
+                      )
+                      .sort(
+                        (a, b) =>
+                          new Date(
+                            b.createdAt
+                          ) -
+                          new Date(
+                            a.createdAt
+                          )
+                      )
+                      .map((t) => (
+                        <tr key={t.id || t.txnId}>
+                          <td>
+                            {t.createdAt
+                              ? new Date(
+                                  t.createdAt
+                                ).toLocaleString()
+                              : "-"}
+                          </td>
+
+                          <td>
+                            <b>{t.type || "-"}</b>
+                          </td>
+
+                          <td>
+                            {t.method ||
+                              t.network ||
+                              "-"}
+                          </td>
+
+                          <td>
+                            {t.status || "-"}
+                          </td>
+
+                          <td>
+                            {money(t.amount)}
+                          </td>
+                        </tr>
+                      ))}
+
+                    {!transactions.some(
+                      (t) =>
+                        t.userId ===
+                        statementUser.id
+                    ) && (
+                      <tr>
+                        <td
+                          colSpan="5"
+                          style={{
+                            textAlign: "center",
+                          }}
+                        >
+                          No transaction records found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "10px",
+                marginTop: "18px",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                onClick={closeUserStatement}
+              >
+                Close
+              </button>
+
+              <button
+                type="button"
+                onClick={printUserStatement}
+              >
+                🖨️ Download / Save PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       </main>
     </div>
   );
@@ -951,6 +1388,7 @@ function AdminStat({
 function Users({
   users,
   openUserEdit,
+  openUserStatement,
   openUserPassword,
   openUserBalance,
   toggleUserStatus,
@@ -1067,6 +1505,15 @@ function Users({
                         }
                       >
                         Balance
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openUserStatement(u)
+                        }
+                      >
+                        Statement
                       </button>
 
                       <button
