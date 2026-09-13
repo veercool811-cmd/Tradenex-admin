@@ -597,6 +597,133 @@ function App() {
             <Support tickets={support} />
           )}
         </section>
+
+      {userModal === "edit" && selectedUser && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <h3>Edit User</h3>
+
+            {[
+              ["name", "Name"],
+              ["email", "Email"],
+              ["mobile", "Mobile"],
+              ["aadhaar", "Aadhaar"],
+              ["address", "Address"],
+            ].map(([key, label]) => (
+              <input
+                key={key}
+                value={userForm[key]}
+                placeholder={label}
+                onChange={(e) =>
+                  setUserForm({
+                    ...userForm,
+                    [key]: e.target.value,
+                  })
+                }
+              />
+            ))}
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={saveUserEdit}
+              >
+                Save Changes
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUserModal("");
+                  setSelectedUser(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {userModal === "password" && selectedUser && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <h3>Change Password</h3>
+
+            <input
+              type="password"
+              value={userForm.password}
+              placeholder="New password"
+              onChange={(e) =>
+                setUserForm({
+                  ...userForm,
+                  password: e.target.value,
+                })
+              }
+            />
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={saveUserPassword}
+              >
+                Change Password
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUserModal("");
+                  setSelectedUser(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {userModal === "balance" && selectedUser && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <h3>Set User Balance</h3>
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={userForm.balance}
+              placeholder="Balance"
+              onChange={(e) =>
+                setUserForm({
+                  ...userForm,
+                  balance: e.target.value,
+                })
+              }
+            />
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={saveUserBalance}
+              >
+                Save Balance
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUserModal("");
+                  setSelectedUser(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </main>
     </div>
   );
@@ -971,133 +1098,6 @@ function Users({
   );
 }
 
-
-      {userModal === "edit" && selectedUser && (
-        <div className="admin-modal-overlay">
-          <div className="admin-modal">
-            <h3>Edit User</h3>
-
-            {[
-              ["name", "Name"],
-              ["email", "Email"],
-              ["mobile", "Mobile"],
-              ["aadhaar", "Aadhaar"],
-              ["address", "Address"],
-            ].map(([key, label]) => (
-              <input
-                key={key}
-                value={userForm[key]}
-                placeholder={label}
-                onChange={(e) =>
-                  setUserForm({
-                    ...userForm,
-                    [key]: e.target.value,
-                  })
-                }
-              />
-            ))}
-
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                type="button"
-                onClick={saveUserEdit}
-              >
-                Save Changes
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setUserModal("");
-                  setSelectedUser(null);
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {userModal === "password" && selectedUser && (
-        <div className="admin-modal-overlay">
-          <div className="admin-modal">
-            <h3>Change Password</h3>
-
-            <input
-              type="password"
-              value={userForm.password}
-              placeholder="New password"
-              onChange={(e) =>
-                setUserForm({
-                  ...userForm,
-                  password: e.target.value,
-                })
-              }
-            />
-
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                type="button"
-                onClick={saveUserPassword}
-              >
-                Change Password
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setUserModal("");
-                  setSelectedUser(null);
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {userModal === "balance" && selectedUser && (
-        <div className="admin-modal-overlay">
-          <div className="admin-modal">
-            <h3>Set User Balance</h3>
-
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={userForm.balance}
-              placeholder="Balance"
-              onChange={(e) =>
-                setUserForm({
-                  ...userForm,
-                  balance: e.target.value,
-                })
-              }
-            />
-
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                type="button"
-                onClick={saveUserBalance}
-              >
-                Save Balance
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setUserModal("");
-                  setSelectedUser(null);
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
 /* =====================================================
    DEPOSITS
