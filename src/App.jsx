@@ -49,6 +49,9 @@ function App() {
   const [withdrawals, setWithdrawals] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [support, setSupport] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationUnread, setNotificationUnread] = useState(0);
+  const [notificationOpen, setNotificationOpen] = useState(false);
 
   const [selectedUser, setSelectedUser] = useState(null);
   const [userModal, setUserModal] = useState("");
@@ -67,6 +70,76 @@ function App() {
     email: "",
     password: "",
   });
+
+  async function loadNotifications() {
+    try {
+      const result = await api("/api/admin/notifications");
+
+      if (result && result.success) {
+        setNotifications(
+          Array.isArray(result.notifications)
+            ? result.notifications
+            : []
+        );
+
+        setNotificationUnread(
+          Number(result.unreadCount || 0)
+        );
+      }
+    } catch (error) {
+      console.error("NOTIFICATIONS LOAD ERROR:", error);
+    }
+  }
+
+  async function markNotificationRead(id) {
+    try {
+      const result = await api(
+        `/api/admin/notifications/${id}/read`,
+        { method: "PUT" }
+      );
+
+      if (result && result.success) {
+        setNotifications((items) =>
+          items.map((item) =>
+            String(item.id) === String(id)
+              ? { ...item, read: true }
+              : item
+          )
+        );
+
+        setNotificationUnread((count) =>
+          Math.max(0, count - 1)
+        );
+      }
+    } catch (error) {
+      console.error("NOTIFICATION READ ERROR:", error);
+    }
+  }
+
+  async function markAllNotificationsRead() {
+    try {
+      const result = await api(
+        "/api/admin/notifications/read-all",
+        { method: "PUT" }
+      );
+
+      if (result && result.success) {
+        setNotifications((items) =>
+          items.map((item) => ({
+            ...item,
+            read: true,
+          }))
+        );
+
+        setNotificationUnread(0);
+      }
+    } catch (error) {
+      console.error(
+        "NOTIFICATIONS READ ALL ERROR:",
+        error
+      );
+    }
+  }
 
   async function loadAdminData() {
     try {
@@ -101,9 +174,19 @@ function App() {
   }
 
   useEffect(() => {
-    if (logged) {
-      loadAdminData();
-    }
+    if (!logged) return;
+
+    loadAdminData();
+    loadNotifications();
+
+    const notificationTimer = setInterval(
+      loadNotifications,
+      30000
+    );
+
+    return () => {
+      clearInterval(notificationTimer);
+    };
   }, [logged]);
 
 
@@ -713,7 +796,263 @@ function App() {
             </small>
           </div>
 
-          <div className="admin-user">
+          <div
+            className="admin-user"
+            style={{
+              position: "relative",
+            }}
+          >
+            <div
+              className="admin-notification-wrap"
+              style={{
+                position: "relative",
+              }}
+            >
+              <button
+                className="admin-notification-bell"
+                onClick={() =>
+                  setNotificationOpen(
+                    (open) => !open
+                  )
+                }
+                style={{
+                  position: "relative",
+                  border: "0",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontSize: "22px",
+                  padding: "8px",
+                  marginRight: "8px",
+                }}
+                aria-label="Notifications"
+              >
+                🔔
+
+                {notificationUnread > 0 && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: "0",
+                      right: "0",
+                      minWidth: "18px",
+                      height: "18px",
+                      padding: "0 4px",
+                      borderRadius: "10px",
+                      background: "#ef4444",
+                      color: "#fff",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      lineHeight: "18px",
+                    }}
+                  >
+                    {notificationUnread > 99
+                      ? "99+"
+                      : notificationUnread}
+                  </span>
+                )}
+              </button>
+
+              {notificationOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "48px",
+                    right: "0",
+                    width: "340px",
+                    maxWidth: "calc(100vw - 30px)",
+                    background: "#fff",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "14px",
+                    boxShadow:
+                      "0 12px 35px rgba(0,0,0,.18)",
+                    zIndex: 9999,
+                    overflow: "hidden",
+                    color: "#111827",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "14px 16px",
+                      borderBottom:
+                        "1px solid #e5e7eb",
+                    }}
+                  >
+                    <b>
+                      Notifications
+                    </b>
+
+                    {notificationUnread > 0 && (
+                      <button
+                        onClick={
+                          markAllNotificationsRead
+                        }
+                        style={{
+                          border: "0",
+                          background: "transparent",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      maxHeight: "380px",
+                      overflowY: "auto",
+                    }}
+                  >
+                    {notifications.length === 0 ? (
+                      <div
+                        style={{
+                          padding: "30px 16px",
+                          textAlign: "center",
+                          color: "#6b7280",
+                          fontSize: "14px",
+                        }}
+                      >
+                        No notifications
+                      </div>
+                    ) : (
+                      notifications.map(
+                        (notification) => (
+                          <button
+                            key={notification.id}
+                            onClick={() => {
+                              if (
+                                !notification.read
+                              ) {
+                                markNotificationRead(
+                                  notification.id
+                                );
+                              }
+                            }}
+                            style={{
+                              width: "100%",
+                              display: "block",
+                              textAlign: "left",
+                              border: "0",
+                              borderBottom:
+                                "1px solid #f0f0f0",
+                              background:
+                                notification.read
+                                  ? "#fff"
+                                  : "#f5f9ff",
+                              cursor:
+                                notification.read
+                                  ? "default"
+                                  : "pointer",
+                              padding:
+                                "13px 16px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "10px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "19px",
+                                }}
+                              >
+                                {notification.type ===
+                                "new_user"
+                                  ? "👤"
+                                  : notification.type ===
+                                    "deposit"
+                                  ? "💰"
+                                  : notification.type ===
+                                    "withdrawal"
+                                  ? "💸"
+                                  : notification.type ===
+                                    "support"
+                                  ? "🎫"
+                                  : "🔔"}
+                              </span>
+
+                              <div
+                                style={{
+                                  flex: 1,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems:
+                                      "center",
+                                    gap: "7px",
+                                  }}
+                                >
+                                  <b
+                                    style={{
+                                      fontSize: "13px",
+                                    }}
+                                  >
+                                    {
+                                      notification.title
+                                    }
+                                  </b>
+
+                                  {!notification.read && (
+                                    <span
+                                      style={{
+                                        width: "7px",
+                                        height: "7px",
+                                        borderRadius:
+                                          "50%",
+                                        background:
+                                          "#ef4444",
+                                      }}
+                                    />
+                                  )}
+                                </div>
+
+                                <div
+                                  style={{
+                                    marginTop: "4px",
+                                    fontSize: "12px",
+                                    lineHeight: "1.4",
+                                    color: "#6b7280",
+                                  }}
+                                >
+                                  {
+                                    notification.message
+                                  }
+                                </div>
+
+                                <small
+                                  style={{
+                                    display: "block",
+                                    marginTop: "5px",
+                                    color: "#9ca3af",
+                                  }}
+                                >
+                                  {new Date(
+                                    notification.createdAt
+                                  ).toLocaleString()}
+                                </small>
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <span>🔐</span>
 
             <div>
