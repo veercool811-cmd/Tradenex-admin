@@ -50,6 +50,18 @@ function App() {
   const [transactions, setTransactions] = useState([]);
   const [support, setSupport] = useState([]);
 
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userModal, setUserModal] = useState("");
+  const [userForm, setUserForm] = useState({
+    name: "",
+    email: "",
+    mobile: "",
+    aadhaar: "",
+    address: "",
+    balance: "",
+    password: "",
+  });
+
   const [login, setLogin] = useState({
     email: "",
     password: "",
@@ -92,6 +104,187 @@ function App() {
       loadAdminData();
     }
   }, [logged]);
+
+
+  function openUserEdit(user) {
+    setSelectedUser(user);
+    setUserForm({
+      name: user.name || "",
+      email: user.email || "",
+      mobile: user.mobile || user.phone || "",
+      aadhaar: user.aadhaar || "",
+      address: user.address || "",
+      balance: user.balance ?? 0,
+      password: "",
+    });
+    setUserModal("edit");
+  }
+
+  async function saveUserEdit() {
+    try {
+      setLoading(true);
+
+      const data = await api(
+        `/api/admin/users/${selectedUser.id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            name: userForm.name,
+            email: userForm.email,
+            mobile: userForm.mobile,
+            aadhaar: userForm.aadhaar,
+            address: userForm.address,
+          }),
+        }
+      );
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === selectedUser.id
+            ? { ...u, ...data.user }
+            : u
+        )
+      );
+
+      setUserModal("");
+      setSelectedUser(null);
+      setMessage("User details updated successfully.");
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveUserPassword() {
+    if (!userForm.password || userForm.password.length < 6) {
+      setMessage("Password must be at least 6 characters.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      await api(
+        `/api/admin/users/${selectedUser.id}/password`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            password: userForm.password,
+          }),
+        }
+      );
+
+      setUserModal("");
+      setSelectedUser(null);
+      setMessage("Password changed successfully.");
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveUserBalance() {
+    const balance = Number(userForm.balance);
+
+    if (!Number.isFinite(balance) || balance < 0) {
+      setMessage("Enter a valid balance.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const data = await api(
+        `/api/admin/users/${selectedUser.id}/balance`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ balance }),
+        }
+      );
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === selectedUser.id
+            ? { ...u, ...data.user }
+            : u
+        )
+      );
+
+      setUserModal("");
+      setSelectedUser(null);
+      setMessage("Balance updated successfully.");
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function toggleUserStatus(user) {
+    const nextStatus =
+      user.status === "Inactive"
+        ? "Active"
+        : "Inactive";
+
+    try {
+      setLoading(true);
+
+      const data = await api(
+        `/api/admin/users/${user.id}/status`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            status: nextStatus,
+          }),
+        }
+      );
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === user.id
+            ? { ...u, ...data.user }
+            : u
+        )
+      );
+
+      setMessage(`User ${nextStatus.toLowerCase()}.`);
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteUser(user) {
+    const ok = window.confirm(
+      `Delete user "${user.name || user.email || user.id}"? This cannot be undone.`
+    );
+
+    if (!ok) return;
+
+    try {
+      setLoading(true);
+
+      await api(
+        `/api/admin/users/${user.id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      setUsers((prev) =>
+        prev.filter((u) => u.id !== user.id)
+      );
+
+      setMessage("User deleted successfully.");
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function adminLogin(e) {
     e.preventDefault();
@@ -348,7 +541,28 @@ function App() {
           )}
 
           {page === "users" && (
-            <Users users={users} />
+            <Users
+              users={users}
+              openUserEdit={openUserEdit}
+              openUserPassword={(user) => {
+                setSelectedUser(user);
+                setUserForm((f) => ({
+                  ...f,
+                  password: "",
+                }));
+                setUserModal("password");
+              }}
+              openUserBalance={(user) => {
+                setSelectedUser(user);
+                setUserForm((f) => ({
+                  ...f,
+                  balance: user.balance ?? 0,
+                }));
+                setUserModal("balance");
+              }}
+              toggleUserStatus={toggleUserStatus}
+              deleteUser={deleteUser}
+            />
           )}
 
           {page === "deposits" && (
@@ -607,15 +821,19 @@ function AdminStat({
    USERS
 ===================================================== */
 
-function Users({ users }) {
+function Users({
+  users,
+  openUserEdit,
+  openUserPassword,
+  openUserBalance,
+  toggleUserStatus,
+  deleteUser,
+}) {
   return (
     <div className="admin-panel">
       <div className="admin-panel-head">
         <h3>All Users</h3>
-
-        <span>
-          {users.length} users
-        </span>
+        <span>{users.length} users</span>
       </div>
 
       {!users.length ? (
@@ -635,7 +853,9 @@ function Users({ users }) {
                 <th>Reward</th>
                 <th>Referral Code</th>
                 <th>Referrals</th>
+                <th>Status</th>
                 <th>Created</th>
+                <th>Actions</th>
               </tr>
             </thead>
 
@@ -650,31 +870,20 @@ function Users({ users }) {
                         }`.trim() ||
                         "User"}
                     </b>
-
                     <small>{u.id}</small>
                   </td>
 
                   <td>{u.email || "-"}</td>
 
                   <td>
-                    {u.mobile ||
-                      u.phone ||
-                      "-"}
+                    {u.mobile || u.phone || "-"}
                   </td>
 
-                  <td>
-                    {money(u.balance)}
-                  </td>
+                  <td>{money(u.balance)}</td>
 
-                  <td>
-                    {money(u.profit)}
-                  </td>
+                  <td>{money(u.profit)}</td>
 
-                  <td>
-                    {money(
-                      u.referralReward
-                    )}
-                  </td>
+                  <td>{money(u.referralReward)}</td>
 
                   <td>
                     <span className="ref-code">
@@ -683,8 +892,13 @@ function Users({ users }) {
                   </td>
 
                   <td>
-                    {(u.referrals || [])
-                      .length}
+                    {(u.referrals || []).length}
+                  </td>
+
+                  <td>
+                    <span>
+                      {u.status || "Active"}
+                    </span>
                   </td>
 
                   <td>
@@ -693,6 +907,59 @@ function Users({ users }) {
                           u.createdAt
                         ).toLocaleDateString()
                       : "-"}
+                  </td>
+
+                  <td>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "6px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => openUserEdit(u)}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openUserPassword(u)
+                        }
+                      >
+                        Password
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openUserBalance(u)
+                        }
+                      >
+                        Balance
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          toggleUserStatus(u)
+                        }
+                      >
+                        {u.status === "Inactive"
+                          ? "Activate"
+                          : "Deactivate"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => deleteUser(u)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -703,6 +970,134 @@ function Users({ users }) {
     </div>
   );
 }
+
+
+      {userModal === "edit" && selectedUser && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <h3>Edit User</h3>
+
+            {[
+              ["name", "Name"],
+              ["email", "Email"],
+              ["mobile", "Mobile"],
+              ["aadhaar", "Aadhaar"],
+              ["address", "Address"],
+            ].map(([key, label]) => (
+              <input
+                key={key}
+                value={userForm[key]}
+                placeholder={label}
+                onChange={(e) =>
+                  setUserForm({
+                    ...userForm,
+                    [key]: e.target.value,
+                  })
+                }
+              />
+            ))}
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={saveUserEdit}
+              >
+                Save Changes
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUserModal("");
+                  setSelectedUser(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {userModal === "password" && selectedUser && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <h3>Change Password</h3>
+
+            <input
+              type="password"
+              value={userForm.password}
+              placeholder="New password"
+              onChange={(e) =>
+                setUserForm({
+                  ...userForm,
+                  password: e.target.value,
+                })
+              }
+            />
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={saveUserPassword}
+              >
+                Change Password
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUserModal("");
+                  setSelectedUser(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {userModal === "balance" && selectedUser && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <h3>Set User Balance</h3>
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={userForm.balance}
+              placeholder="Balance"
+              onChange={(e) =>
+                setUserForm({
+                  ...userForm,
+                  balance: e.target.value,
+                })
+              }
+            />
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={saveUserBalance}
+              >
+                Save Balance
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUserModal("");
+                  setSelectedUser(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
 /* =====================================================
    DEPOSITS
