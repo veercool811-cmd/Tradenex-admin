@@ -1,0 +1,438 @@
+import { useEffect, useState } from "react";
+import "./App.css";
+
+const API = "https://tradenex-api.onrender.com";
+
+const money = (n) =>
+  `$${Number(n || 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+async function api(path, options = {}) {
+  const res = await fetch(API + path, {
+    ...options,
+    headers: {
+      ...(options.body instanceof FormData
+        ? {}
+        : { "Content-Type": "application/json" }),
+      ...(options.headers || {}),
+    },
+  });
+
+  const json = await res.json().catch(() => ({
+    success: false,
+    message: "Invalid server response.",
+  }));
+
+  if (!res.ok) {
+    throw new Error(
+      json.message || "Something went wrong"
+    );
+  }
+
+  return json;
+}
+
+function App() {
+  const [logged, setLogged] = useState(
+    localStorage.getItem("tradenex_admin") === "1"
+  );
+
+  const [page, setPage] = useState("dashboard");
+  const [sidebar, setSidebar] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const [users, setUsers] = useState([]);
+  const [deposits, setDeposits] = useState([]);
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [support, setSupport] = useState([]);
+
+  const [login, setLogin] = useState({
+    email: "",
+    password: "",
+  });
+
+  async function loadAdminData() {
+    try {
+      setLoading(true);
+
+      const [
+        usersRes,
+        depositsRes,
+        withdrawalsRes,
+        transactionsRes,
+        supportRes,
+      ] = await Promise.all([
+        api("/api/admin/users"),
+        api("/api/admin/deposits"),
+        api("/api/admin/withdrawals"),
+        api("/api/admin/transactions"),
+        api("/api/admin/support"),
+      ]);
+
+      setUsers(usersRes.users || []);
+      setDeposits(depositsRes.deposits || []);
+      setWithdrawals(withdrawalsRes.withdrawals || []);
+      setTransactions(
+        transactionsRes.transactions || []
+      );
+      setSupport(supportRes.support || []);
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (logged) {
+      loadAdminData();
+    }
+  }, [logged]);
+
+  function adminLogin(e) {
+    e.preventDefault();
+
+    if (
+      login.email === "admin@tradenex.com" &&
+      login.password === "admin123"
+    ) {
+      localStorage.setItem(
+        "tradenex_admin",
+        "1"
+      );
+
+      setLogged(true);
+      setMessage("");
+    } else {
+      setMessage(
+        "Invalid admin email or password."
+      );
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem(
+      "tradenex_admin"
+    );
+
+    setLogged(false);
+    setPage("dashboard");
+  }
+
+  async function action(
+    path,
+    successMessage
+  ) {
+    try {
+      setLoading(true);
+      setMessage("");
+
+      const result = await api(path, {
+        method: "POST",
+      });
+
+      setMessage(
+        result.message || successMessage
+      );
+
+      await loadAdminData();
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!logged) {
+    return (
+      <AdminLogin
+        value={login}
+        setValue={setLogin}
+        submit={adminLogin}
+        message={message}
+      />
+    );
+  }
+
+  const pendingDeposits =
+    deposits.filter(
+      (x) => x.status === "Pending"
+    ).length;
+
+  const pendingWithdrawals =
+    withdrawals.filter(
+      (x) => x.status === "Pending"
+    ).length;
+
+  const totalBalance = users.reduce(
+    (sum, u) =>
+      sum + Number(u.balance || 0),
+    0
+  );
+
+  const referralRewards = users.reduce(
+    (sum, u) =>
+      sum +
+      Number(u.referralReward || 0),
+    0
+  );
+
+  return (
+    <div className="admin-app">
+      <aside
+        className={`admin-sidebar ${
+          sidebar ? "open" : ""
+        }`}
+      >
+        <div className="admin-brand">
+          <span>₮</span>
+          <b>Tradenex</b>
+          <small>ADMIN PANEL</small>
+        </div>
+
+        <div className="admin-menu-title">
+          MAIN MENU
+        </div>
+
+        <AdminMenu
+          icon="⌂"
+          text="Dashboard"
+          active={page === "dashboard"}
+          onClick={() => {
+            setPage("dashboard");
+            setSidebar(false);
+          }}
+        />
+
+        <AdminMenu
+          icon="👥"
+          text="Users"
+          active={page === "users"}
+          onClick={() => {
+            setPage("users");
+            setSidebar(false);
+          }}
+        />
+
+        <AdminMenu
+          icon="↓"
+          text="Deposits"
+          active={page === "deposits"}
+          badge={pendingDeposits}
+          onClick={() => {
+            setPage("deposits");
+            setSidebar(false);
+          }}
+        />
+
+        <AdminMenu
+          icon="↗"
+          text="Withdrawals"
+          active={page === "withdrawals"}
+          badge={pendingWithdrawals}
+          onClick={() => {
+            setPage("withdrawals");
+            setSidebar(false);
+          }}
+        />
+
+        <AdminMenu
+          icon="🎁"
+          text="Referral Rewards"
+          active={page === "rewards"}
+          onClick={() => {
+            setPage("rewards");
+            setSidebar(false);
+          }}
+        />
+
+        <AdminMenu
+          icon="⇄"
+          text="Transactions"
+          active={page === "transactions"}
+          onClick={() => {
+            setPage("transactions");
+            setSidebar(false);
+          }}
+        />
+
+        <AdminMenu
+          icon="🎫"
+          text="Support"
+          active={page === "support"}
+          onClick={() => {
+            setPage("support");
+            setSidebar(false);
+          }}
+        />
+
+        <div className="admin-bottom">
+          <button onClick={logout}>
+            ↪ Logout
+          </button>
+        </div>
+      </aside>
+
+      {sidebar && (
+        <div
+          className="admin-overlay"
+          onClick={() => setSidebar(false)}
+        />
+      )}
+
+      <main className="admin-main">
+        <header className="admin-topbar">
+          <button
+            className="admin-hamburger"
+            onClick={() => setSidebar(true)}
+          >
+            ☰
+          </button>
+
+          <div>
+            <h2>{adminTitle(page)}</h2>
+
+            <small>
+              Tradenex Administration
+            </small>
+          </div>
+
+          <div className="admin-user">
+            <span>🔐</span>
+
+            <div>
+              <b>Administrator</b>
+
+              <small>
+                admin@tradenex.com
+              </small>
+            </div>
+
+            <button onClick={logout}>
+              Logout
+            </button>
+          </div>
+        </header>
+
+        {message && (
+          <div className="admin-notice">
+            {message}
+
+            <button
+              onClick={() => setMessage("")}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        <section className="admin-content">
+          {page === "dashboard" && (
+            <Dashboard
+              users={users}
+              deposits={deposits}
+              withdrawals={withdrawals}
+              totalBalance={totalBalance}
+              pendingDeposits={pendingDeposits}
+              pendingWithdrawals={
+                pendingWithdrawals
+              }
+              referralRewards={
+                referralRewards
+              }
+            />
+          )}
+
+          {page === "users" && (
+            <Users users={users} />
+          )}
+
+          {page === "deposits" && (
+            <Deposits
+              deposits={deposits}
+              users={users}
+              action={action}
+              loading={loading}
+            />
+          )}
+
+          {page === "withdrawals" && (
+            <Withdrawals
+              withdrawals={withdrawals}
+              users={users}
+              action={action}
+              loading={loading}
+            />
+          )}
+
+          {page === "rewards" && (
+            <Rewards users={users} />
+          )}
+
+          {page === "transactions" && (
+            <Transactions
+              transactions={transactions}
+            />
+          )}
+
+          {page === "support" && (
+            <Support tickets={support} />
+          )}
+        </section>
+      </main>
+    </div>
+  );
+}
+
+/* =====================================================
+   ADMIN LOGIN
+===================================================== */
+
+function AdminLogin({
+  value,
+  setValue,
+  submit,
+  message,
+
+/* =====================================================
+   STATUS
+===================================================== */
+
+function Status({ status }) {
+  return (
+    <span
+      className={`admin-status ${String(
+        status || ""
+      ).toLowerCase()}`}
+    >
+      {status || "-"}
+    </span>
+  );
+}
+
+/* =====================================================
+   PAGE TITLE
+===================================================== */
+
+function adminTitle(page) {
+  const titles = {
+    dashboard: "Dashboard",
+    users: "Users",
+    deposits: "Deposits",
+    withdrawals: "Withdrawals",
+    rewards: "Referral Rewards",
+    transactions: "Transactions",
+    support: "Support",
+  };
+
+  return (
+    titles[page] ||
+    "Dashboard"
+  );
+}
+
+export default App;

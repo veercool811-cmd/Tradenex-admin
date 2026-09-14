@@ -1056,3 +1056,144 @@ button {
     padding: 22px;
   }
 }
+
+/* =====================================================
+   OFFERS ADMIN
+===================================================== */
+
+.offer-manager {
+  max-width: 900px;
+}
+
+.offer-manager .admin-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 25px;
+}
+
+.offer-manager .admin-panel-head h2 {
+  margin: 0;
+}
+
+.offer-manager .admin-panel-head p {
+  margin: 6px 0 0;
+  opacity: .65;
+}
+
+.offer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.offer-toggle input {
+  width: 20px;
+  height: 20px;
+  accent-color: #4ade80;
+}
+
+.offer-form {
+  display: grid;
+  gap: 18px;
+}
+
+.offer-form label {
+  display: grid;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.offer-form input,
+.offer-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  color: inherit;
+  outline: none;
+  font: inherit;
+}
+
+.offer-form textarea {
+  resize: vertical;
+}
+
+.offer-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.offer-preview {
+  margin-top: 8px;
+}
+
+.offer-preview-title {
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.offer-preview-card {
+  padding: 25px;
+  border-radius: 20px;
+  text-align: center;
+  background: linear-gradient(145deg, #111b3d, #070d22);
+  border: 1px solid rgba(255,255,255,.12);
+}
+
+.offer-preview-icon {
+  font-size: 42px;
+}
+
+.offer-preview-card h3 {
+  margin: 8px 0;
+}
+
+.offer-preview-card p {
+  opacity: .75;
+  white-space: pre-wrap;
+}
+
+.offer-preview-card button {
+  padding: 11px 20px;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-primary-btn {
+  padding: 14px 20px;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.admin-primary-btn:disabled {
+  opacity: .6;
+}
+
+.offer-notice {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.06);
+}
+
+@media (max-width: 700px) {
+  .offer-two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .offer-manager .admin-panel-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

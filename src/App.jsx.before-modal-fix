@@ -49,13 +49,9 @@ function App() {
   const [withdrawals, setWithdrawals] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [support, setSupport] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [notificationUnread, setNotificationUnread] = useState(0);
-  const [notificationOpen, setNotificationOpen] = useState(false);
 
   const [selectedUser, setSelectedUser] = useState(null);
   const [userModal, setUserModal] = useState("");
-  const [statementUser, setStatementUser] = useState(null);
   const [userForm, setUserForm] = useState({
     name: "",
     email: "",
@@ -70,76 +66,6 @@ function App() {
     email: "",
     password: "",
   });
-
-  async function loadNotifications() {
-    try {
-      const result = await api("/api/admin/notifications");
-
-      if (result && result.success) {
-        setNotifications(
-          Array.isArray(result.notifications)
-            ? result.notifications
-            : []
-        );
-
-        setNotificationUnread(
-          Number(result.unreadCount || 0)
-        );
-      }
-    } catch (error) {
-      console.error("NOTIFICATIONS LOAD ERROR:", error);
-    }
-  }
-
-  async function markNotificationRead(id) {
-    try {
-      const result = await api(
-        `/api/admin/notifications/${id}/read`,
-        { method: "PUT" }
-      );
-
-      if (result && result.success) {
-        setNotifications((items) =>
-          items.map((item) =>
-            String(item.id) === String(id)
-              ? { ...item, read: true }
-              : item
-          )
-        );
-
-        setNotificationUnread((count) =>
-          Math.max(0, count - 1)
-        );
-      }
-    } catch (error) {
-      console.error("NOTIFICATION READ ERROR:", error);
-    }
-  }
-
-  async function markAllNotificationsRead() {
-    try {
-      const result = await api(
-        "/api/admin/notifications/read-all",
-        { method: "PUT" }
-      );
-
-      if (result && result.success) {
-        setNotifications((items) =>
-          items.map((item) => ({
-            ...item,
-            read: true,
-          }))
-        );
-
-        setNotificationUnread(0);
-      }
-    } catch (error) {
-      console.error(
-        "NOTIFICATIONS READ ALL ERROR:",
-        error
-      );
-    }
-  }
 
   async function loadAdminData() {
     try {
@@ -174,19 +100,9 @@ function App() {
   }
 
   useEffect(() => {
-    if (!logged) return;
-
-    loadAdminData();
-    loadNotifications();
-
-    const notificationTimer = setInterval(
-      loadNotifications,
-      30000
-    );
-
-    return () => {
-      clearInterval(notificationTimer);
-    };
+    if (logged) {
+      loadAdminData();
+    }
   }, [logged]);
 
 
@@ -202,224 +118,6 @@ function App() {
       password: "",
     });
     setUserModal("edit");
-  }
-
-  function openUserStatement(user) {
-    setStatementUser(user);
-    setUserModal("statement");
-  }
-
-  function closeUserStatement() {
-    setStatementUser(null);
-    setUserModal("");
-  }
-
-  function printUserStatement() {
-    if (!statementUser) return;
-
-    const uid = statementUser.id;
-
-    const userDeposits = deposits
-      .filter((d) => d.userId === uid)
-      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-
-    const userWithdrawals = withdrawals
-      .filter((w) => w.userId === uid)
-      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-
-    const userTransactions = transactions
-      .filter((t) => t.userId === uid)
-      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-
-    const name =
-      statementUser.name ||
-      `${statementUser.firstName || ""} ${statementUser.lastName || ""}`.trim() ||
-      "User";
-
-    const moneyValue = (value) =>
-      `$${Number(value || 0).toFixed(2)}`;
-
-    const dateValue = (value) =>
-      value ? new Date(value).toLocaleString() : "-";
-
-    const rows = userTransactions.length
-      ? userTransactions.map((t) => `
-          <tr>
-            <td>${dateValue(t.createdAt)}</td>
-            <td>${t.type || "-"}</td>
-            <td>${t.method || t.network || "-"}</td>
-            <td>${t.status || "-"}</td>
-            <td>${moneyValue(t.amount)}</td>
-          </tr>
-        `).join("")
-      : `
-          <tr>
-            <td colspan="5" style="text-align:center">No transaction records found.</td>
-          </tr>
-        `;
-
-    const win = window.open("", "_blank", "width=1000,height=800");
-
-    if (!win) {
-      setMessage("Please allow pop-ups to download the statement.");
-      return;
-    }
-
-    win.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Tradenex Account Statement - ${name}</title>
-        <style>
-          * { box-sizing: border-box; }
-          body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 32px;
-            color: #111827;
-            background: #fff;
-          }
-          .head {
-            display: flex;
-            justify-content: space-between;
-            border-bottom: 2px solid #111827;
-            padding-bottom: 18px;
-            margin-bottom: 22px;
-          }
-          .brand {
-            font-size: 28px;
-            font-weight: 800;
-          }
-          .sub {
-            color: #6b7280;
-            margin-top: 5px;
-          }
-          .user {
-            text-align: right;
-            font-size: 13px;
-          }
-          .cards {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 10px;
-            margin-bottom: 25px;
-          }
-          .card {
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            padding: 14px;
-          }
-          .label {
-            color: #6b7280;
-            font-size: 11px;
-            margin-bottom: 7px;
-          }
-          .value {
-            font-size: 17px;
-            font-weight: 700;
-          }
-          h2 {
-            font-size: 18px;
-            margin: 24px 0 10px;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-          }
-          th, td {
-            border: 1px solid #d1d5db;
-            padding: 9px;
-            text-align: left;
-          }
-          th {
-            background: #f3f4f6;
-          }
-          .footer {
-            margin-top: 30px;
-            padding-top: 12px;
-            border-top: 1px solid #d1d5db;
-            color: #6b7280;
-            font-size: 11px;
-          }
-          @media print {
-            body { padding: 18px; }
-            @page { size: A4; margin: 12mm; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="head">
-          <div>
-            <div class="brand">TRADENEX</div>
-            <div class="sub">Official Account Statement</div>
-          </div>
-          <div class="user">
-            <b>${name}</b><br>
-            User ID: ${uid}<br>
-            ${statementUser.email || "-"}<br>
-            ${statementUser.mobile || statementUser.phone || "-"}
-          </div>
-        </div>
-
-        <div class="cards">
-          <div class="card">
-            <div class="label">TOTAL DEPOSIT</div>
-            <div class="value">${moneyValue(statementUser.balance !== undefined ? statementUser.totalDeposit : userDeposits.filter(d => d.status === "Approved").reduce((a,d) => a + Number(d.amount || 0), 0))}</div>
-          </div>
-
-          <div class="card">
-            <div class="label">TOTAL PROFIT</div>
-            <div class="value">${moneyValue(statementUser.profit)}</div>
-          </div>
-
-          <div class="card">
-            <div class="label">TOTAL WITHDRAWAL</div>
-            <div class="value">${moneyValue(userWithdrawals.filter(w => w.status === "Approved").reduce((a,w) => a + Number(w.amount || 0), 0))}</div>
-          </div>
-
-          <div class="card">
-            <div class="label">REFERRAL REWARD</div>
-            <div class="value">${moneyValue(statementUser.referralReward)}</div>
-          </div>
-
-          <div class="card">
-            <div class="label">CURRENT BALANCE</div>
-            <div class="value">${moneyValue(statementUser.balance)}</div>
-          </div>
-        </div>
-
-        <h2>Transaction History</h2>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Method / Network</th>
-              <th>Status</th>
-              <th>Amount</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-
-        <div class="footer">
-          Generated by Tradenex Admin • ${new Date().toLocaleString()}
-        </div>
-
-        <script>
-          window.onload = function() {
-            setTimeout(function() {
-              window.print();
-            }, 400);
-          };
-        </script>
-      </body>
-      </html>
-    `);
-
-    win.document.close();
   }
 
   async function saveUserEdit() {
@@ -693,16 +391,6 @@ function App() {
           MAIN MENU
         </div>
 
-          <AdminMenu
-            icon="🎁"
-            text="Offers"
-            active={page === "offers"}
-            onClick={() => {
-              setPage("offers");
-              setSidebar(false);
-            }}
-          />
-
         <AdminMenu
           icon="⌂"
           text="Dashboard"
@@ -806,263 +494,7 @@ function App() {
             </small>
           </div>
 
-          <div
-            className="admin-user"
-            style={{
-              position: "relative",
-            }}
-          >
-            <div
-              className="admin-notification-wrap"
-              style={{
-                position: "relative",
-              }}
-            >
-              <button
-                className="admin-notification-bell"
-                onClick={() =>
-                  setNotificationOpen(
-                    (open) => !open
-                  )
-                }
-                style={{
-                  position: "relative",
-                  border: "0",
-                  background: "transparent",
-                  cursor: "pointer",
-                  fontSize: "22px",
-                  padding: "8px",
-                  marginRight: "8px",
-                }}
-                aria-label="Notifications"
-              >
-                🔔
-
-                {notificationUnread > 0 && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: "0",
-                      right: "0",
-                      minWidth: "18px",
-                      height: "18px",
-                      padding: "0 4px",
-                      borderRadius: "10px",
-                      background: "#ef4444",
-                      color: "#fff",
-                      fontSize: "11px",
-                      fontWeight: "700",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      lineHeight: "18px",
-                    }}
-                  >
-                    {notificationUnread > 99
-                      ? "99+"
-                      : notificationUnread}
-                  </span>
-                )}
-              </button>
-
-              {notificationOpen && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "48px",
-                    right: "0",
-                    width: "340px",
-                    maxWidth: "calc(100vw - 30px)",
-                    background: "#fff",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "14px",
-                    boxShadow:
-                      "0 12px 35px rgba(0,0,0,.18)",
-                    zIndex: 9999,
-                    overflow: "hidden",
-                    color: "#111827",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "14px 16px",
-                      borderBottom:
-                        "1px solid #e5e7eb",
-                    }}
-                  >
-                    <b>
-                      Notifications
-                    </b>
-
-                    {notificationUnread > 0 && (
-                      <button
-                        onClick={
-                          markAllNotificationsRead
-                        }
-                        style={{
-                          border: "0",
-                          background: "transparent",
-                          cursor: "pointer",
-                          fontSize: "12px",
-                          fontWeight: "600",
-                        }}
-                      >
-                        Mark all read
-                      </button>
-                    )}
-                  </div>
-
-                  <div
-                    style={{
-                      maxHeight: "380px",
-                      overflowY: "auto",
-                    }}
-                  >
-                    {notifications.length === 0 ? (
-                      <div
-                        style={{
-                          padding: "30px 16px",
-                          textAlign: "center",
-                          color: "#6b7280",
-                          fontSize: "14px",
-                        }}
-                      >
-                        No notifications
-                      </div>
-                    ) : (
-                      notifications.map(
-                        (notification) => (
-                          <button
-                            key={notification.id}
-                            onClick={() => {
-                              if (
-                                !notification.read
-                              ) {
-                                markNotificationRead(
-                                  notification.id
-                                );
-                              }
-                            }}
-                            style={{
-                              width: "100%",
-                              display: "block",
-                              textAlign: "left",
-                              border: "0",
-                              borderBottom:
-                                "1px solid #f0f0f0",
-                              background:
-                                notification.read
-                                  ? "#fff"
-                                  : "#f5f9ff",
-                              cursor:
-                                notification.read
-                                  ? "default"
-                                  : "pointer",
-                              padding:
-                                "13px 16px",
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: "10px",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: "19px",
-                                }}
-                              >
-                                {notification.type ===
-                                "new_user"
-                                  ? "👤"
-                                  : notification.type ===
-                                    "deposit"
-                                  ? "💰"
-                                  : notification.type ===
-                                    "withdrawal"
-                                  ? "💸"
-                                  : notification.type ===
-                                    "support"
-                                  ? "🎫"
-                                  : "🔔"}
-                              </span>
-
-                              <div
-                                style={{
-                                  flex: 1,
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems:
-                                      "center",
-                                    gap: "7px",
-                                  }}
-                                >
-                                  <b
-                                    style={{
-                                      fontSize: "13px",
-                                    }}
-                                  >
-                                    {
-                                      notification.title
-                                    }
-                                  </b>
-
-                                  {!notification.read && (
-                                    <span
-                                      style={{
-                                        width: "7px",
-                                        height: "7px",
-                                        borderRadius:
-                                          "50%",
-                                        background:
-                                          "#ef4444",
-                                      }}
-                                    />
-                                  )}
-                                </div>
-
-                                <div
-                                  style={{
-                                    marginTop: "4px",
-                                    fontSize: "12px",
-                                    lineHeight: "1.4",
-                                    color: "#6b7280",
-                                  }}
-                                >
-                                  {
-                                    notification.message
-                                  }
-                                </div>
-
-                                <small
-                                  style={{
-                                    display: "block",
-                                    marginTop: "5px",
-                                    color: "#9ca3af",
-                                  }}
-                                >
-                                  {new Date(
-                                    notification.createdAt
-                                  ).toLocaleString()}
-                                </small>
-                              </div>
-                            </div>
-                          </button>
-                        )
-                      )
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
+          <div className="admin-user">
             <span>🔐</span>
 
             <div>
@@ -1112,7 +544,6 @@ function App() {
             <Users
               users={users}
               openUserEdit={openUserEdit}
-              openUserStatement={openUserStatement}
               openUserPassword={(user) => {
                 setSelectedUser(user);
                 setUserForm((f) => ({
@@ -1162,358 +593,10 @@ function App() {
             />
           )}
 
-          {page === "offers" && (
-          <Offers api={API} />
-        )}
-
-        {page === "support" && (
+          {page === "support" && (
             <Support tickets={support} />
           )}
         </section>
-
-      {userModal === "edit" && selectedUser && (
-        <div className="admin-modal-overlay">
-          <div className="admin-modal">
-            <h3>Edit User</h3>
-
-            {[
-              ["name", "Name"],
-              ["email", "Email"],
-              ["mobile", "Mobile"],
-              ["aadhaar", "Aadhaar"],
-              ["address", "Address"],
-            ].map(([key, label]) => (
-              <input
-                key={key}
-                value={userForm[key]}
-                placeholder={label}
-                onChange={(e) =>
-                  setUserForm({
-                    ...userForm,
-                    [key]: e.target.value,
-                  })
-                }
-              />
-            ))}
-
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                type="button"
-                onClick={saveUserEdit}
-              >
-                Save Changes
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setUserModal("");
-                  setSelectedUser(null);
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {userModal === "password" && selectedUser && (
-        <div className="admin-modal-overlay">
-          <div className="admin-modal">
-            <h3>Change Password</h3>
-
-            <input
-              type="password"
-              value={userForm.password}
-              placeholder="New password"
-              onChange={(e) =>
-                setUserForm({
-                  ...userForm,
-                  password: e.target.value,
-                })
-              }
-            />
-
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                type="button"
-                onClick={saveUserPassword}
-              >
-                Change Password
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setUserModal("");
-                  setSelectedUser(null);
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {userModal === "balance" && selectedUser && (
-        <div className="admin-modal-overlay">
-          <div className="admin-modal">
-            <h3>Set User Balance</h3>
-
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={userForm.balance}
-              placeholder="Balance"
-              onChange={(e) =>
-                setUserForm({
-                  ...userForm,
-                  balance: e.target.value,
-                })
-              }
-            />
-
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                type="button"
-                onClick={saveUserBalance}
-              >
-                Save Balance
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setUserModal("");
-                  setSelectedUser(null);
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {userModal === "statement" && statementUser && (
-        <div
-          className="admin-modal-backdrop"
-          onClick={closeUserStatement}
-        >
-          <div
-            className="admin-modal"
-            style={{ maxWidth: "1100px", width: "96%" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="admin-modal-head">
-              <div>
-                <h2>Account Statement</h2>
-                <p>
-                  {statementUser.name ||
-                    `${statementUser.firstName || ""} ${
-                      statementUser.lastName || ""
-                    }`.trim() ||
-                    "User"}
-                  {" • "}
-                  {statementUser.id}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeUserStatement}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div
-              className="admin-stats"
-              style={{
-                gridTemplateColumns:
-                  "repeat(auto-fit,minmax(150px,1fr))",
-                marginBottom: "20px",
-              }}
-            >
-              <AdminStat
-                icon="💰"
-                title="Total Deposit"
-                value={money(
-                  deposits
-                    .filter(
-                      (d) =>
-                        d.userId === statementUser.id &&
-                        d.status === "Approved"
-                    )
-                    .reduce(
-                      (sum, d) =>
-                        sum + Number(d.amount || 0),
-                      0
-                    )
-                )}
-              />
-
-              <AdminStat
-                icon="📈"
-                title="Total Profit"
-                value={money(statementUser.profit)}
-              />
-
-              <AdminStat
-                icon="💸"
-                title="Total Withdrawal"
-                value={money(
-                  withdrawals
-                    .filter(
-                      (w) =>
-                        w.userId === statementUser.id &&
-                        w.status === "Approved"
-                    )
-                    .reduce(
-                      (sum, w) =>
-                        sum + Number(w.amount || 0),
-                      0
-                    )
-                )}
-              />
-
-              <AdminStat
-                icon="🎁"
-                title="Referral Reward"
-                value={money(
-                  statementUser.referralReward
-                )}
-              />
-
-              <AdminStat
-                icon="💵"
-                title="Current Balance"
-                value={money(statementUser.balance)}
-              />
-            </div>
-
-            <div className="admin-panel">
-              <div className="admin-panel-head">
-                <h3>Transaction History</h3>
-                <span>
-                  {
-                    transactions.filter(
-                      (t) =>
-                        t.userId ===
-                        statementUser.id
-                    ).length
-                  } records
-                </span>
-              </div>
-
-              <div className="admin-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Type</th>
-                      <th>Method</th>
-                      <th>Status</th>
-                      <th>Amount</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {transactions
-                      .filter(
-                        (t) =>
-                          t.userId ===
-                          statementUser.id
-                      )
-                      .sort(
-                        (a, b) =>
-                          new Date(
-                            b.createdAt
-                          ) -
-                          new Date(
-                            a.createdAt
-                          )
-                      )
-                      .map((t) => (
-                        <tr key={t.id || t.txnId}>
-                          <td>
-                            {t.createdAt
-                              ? new Date(
-                                  t.createdAt
-                                ).toLocaleString()
-                              : "-"}
-                          </td>
-
-                          <td>
-                            <b>{t.type || "-"}</b>
-                          </td>
-
-                          <td>
-                            {t.method ||
-                              t.network ||
-                              "-"}
-                          </td>
-
-                          <td>
-                            {t.status || "-"}
-                          </td>
-
-                          <td>
-                            {money(t.amount)}
-                          </td>
-                        </tr>
-                      ))}
-
-                    {!transactions.some(
-                      (t) =>
-                        t.userId ===
-                        statementUser.id
-                    ) && (
-                      <tr>
-                        <td
-                          colSpan="5"
-                          style={{
-                            textAlign: "center",
-                          }}
-                        >
-                          No transaction records found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "10px",
-                marginTop: "18px",
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                type="button"
-                onClick={closeUserStatement}
-              >
-                Close
-              </button>
-
-              <button
-                type="button"
-                onClick={printUserStatement}
-              >
-                🖨️ Download / Save PDF
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       </main>
     </div>
   );
@@ -1741,7 +824,6 @@ function AdminStat({
 function Users({
   users,
   openUserEdit,
-  openUserStatement,
   openUserPassword,
   openUserBalance,
   toggleUserStatus,
@@ -1863,15 +945,6 @@ function Users({
                       <button
                         type="button"
                         onClick={() =>
-                          openUserStatement(u)
-                        }
-                      >
-                        Statement
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
                           toggleUserStatus(u)
                         }
                       >
@@ -1898,6 +971,133 @@ function Users({
   );
 }
 
+
+      {userModal === "edit" && selectedUser && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <h3>Edit User</h3>
+
+            {[
+              ["name", "Name"],
+              ["email", "Email"],
+              ["mobile", "Mobile"],
+              ["aadhaar", "Aadhaar"],
+              ["address", "Address"],
+            ].map(([key, label]) => (
+              <input
+                key={key}
+                value={userForm[key]}
+                placeholder={label}
+                onChange={(e) =>
+                  setUserForm({
+                    ...userForm,
+                    [key]: e.target.value,
+                  })
+                }
+              />
+            ))}
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={saveUserEdit}
+              >
+                Save Changes
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUserModal("");
+                  setSelectedUser(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {userModal === "password" && selectedUser && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <h3>Change Password</h3>
+
+            <input
+              type="password"
+              value={userForm.password}
+              placeholder="New password"
+              onChange={(e) =>
+                setUserForm({
+                  ...userForm,
+                  password: e.target.value,
+                })
+              }
+            />
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={saveUserPassword}
+              >
+                Change Password
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUserModal("");
+                  setSelectedUser(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {userModal === "balance" && selectedUser && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <h3>Set User Balance</h3>
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={userForm.balance}
+              placeholder="Balance"
+              onChange={(e) =>
+                setUserForm({
+                  ...userForm,
+                  balance: e.target.value,
+                })
+              }
+            />
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={saveUserBalance}
+              >
+                Save Balance
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUserModal("");
+                  setSelectedUser(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
 /* =====================================================
    DEPOSITS
@@ -2807,157 +2007,6 @@ function Support({ tickets }) {
    STATUS
 ===================================================== */
 
-
-function Offers({ api }) {
-  const [offer, setOffer] = React.useState({
-    enabled: false,
-    title: "",
-    message: "",
-    buttonText: "",
-    buttonUrl: ""
-  });
-  const [saving, setSaving] = React.useState(false);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState("");
-
-  const refresh = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const res = await api("/api/admin/offer");
-      if (res?.offer) setOffer(res.offer);
-    } catch (e) {
-      setError(e?.message || "Unable to load offer.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  React.useEffect(() => {
-    refresh();
-  }, []);
-
-  const update = (key, value) => {
-    setOffer((old) => ({ ...old, [key]: value }));
-  };
-
-  const saveOffer = async (data) => {
-    try {
-      setSaving(true);
-      setError("");
-
-      const res = await api("/api/admin/offer", {
-        method: "PUT",
-        body: JSON.stringify(data)
-      });
-
-      if (!res?.success) {
-        throw new Error(res?.message || "Unable to save offer.");
-      }
-
-      setOffer(res.offer || data);
-      alert(data.enabled ? "Offer published successfully." : "Offer turned OFF.");
-    } catch (e) {
-      setError(e?.message || "Unable to save offer.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="admin-panel">
-      <div className="admin-panel-head">
-        <div>
-          <h2>Offers</h2>
-          <p>Publish an offer that will appear to all users.</p>
-        </div>
-        <span className={offer.enabled ? "admin-status active" : "admin-status"}>
-          {offer.enabled ? "LIVE" : "OFF"}
-        </span>
-      </div>
-
-      {error && <div className="admin-error">{error}</div>}
-
-      <div className="offer-form">
-        <label>
-          Offer Title
-          <input
-            value={offer.title}
-            onChange={(e) => update("title", e.target.value)}
-            placeholder="Special Offer"
-          />
-        </label>
-
-        <label>
-          Offer Message
-          <textarea
-            value={offer.message}
-            onChange={(e) => update("message", e.target.value)}
-            placeholder="Your offer message will appear here."
-            rows="5"
-          />
-        </label>
-
-        <label>
-          Button Text
-          <input
-            value={offer.buttonText}
-            onChange={(e) => update("buttonText", e.target.value)}
-            placeholder="Claim Offer"
-          />
-        </label>
-
-        <label>
-          Button URL
-          <input
-            value={offer.buttonUrl}
-            onChange={(e) => update("buttonUrl", e.target.value)}
-            placeholder="https://tradenex.onrender.com/"
-          />
-        </label>
-
-        <div className="offer-actions">
-          <button
-            className="small-button"
-            disabled={saving || loading}
-            onClick={() => saveOffer({ ...offer, enabled: true })}
-          >
-            {saving ? "Saving..." : "Publish Offer"}
-          </button>
-
-          <button
-            className="toggle"
-            disabled={saving || loading}
-            onClick={() => saveOffer({ ...offer, enabled: false })}
-          >
-            OFF Offer
-          </button>
-
-          <button
-            className="small-button"
-            disabled={saving}
-            onClick={refresh}
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      <div className="offer-preview-box">
-        <div className="offer-preview-badge">PREVIEW</div>
-        <h2>{offer.title || "Your Offer Title"}</h2>
-        <p>{offer.message || "Your offer message will appear here."}</p>
-
-        {offer.buttonText && (
-          <button className="small-button">
-            {offer.buttonText}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function Status({ status }) {
   return (
     <span
@@ -2992,198 +2041,3 @@ function adminTitle(page) {
 }
 
 export default App;
-
-/* =====================================================
-   OFFERS MANAGER
-===================================================== */
-
-function OfferManager() {
-  const API = "https://tradenex-api.onrender.com/api";
-
-  const [offer, setOffer] = React.useState({
-    enabled: false,
-    title: "",
-    message: "",
-    buttonText: "",
-    buttonUrl: ""
-  });
-
-  const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
-  const [notice, setNotice] = React.useState("");
-
-  React.useEffect(() => {
-    async function load() {
-      try {
-        const r = await fetch(`${API}/offer?t=${Date.now()}`, {
-          cache: "no-store"
-        });
-        const result = await r.json();
-
-        if (result?.success && result?.offer) {
-          setOffer({
-            enabled: Boolean(result.offer.enabled),
-            title: result.offer.title || "",
-            message: result.offer.message || "",
-            buttonText: result.offer.buttonText || "",
-            buttonUrl: result.offer.buttonUrl || ""
-          });
-        }
-      } catch (e) {
-        setNotice("Unable to load offer.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    load();
-  }, []);
-
-  async function saveOffer(e) {
-    e.preventDefault();
-    setSaving(true);
-    setNotice("");
-
-    try {
-      const r = await fetch(`${API}/admin/offer`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(offer)
-      });
-
-      const result = await r.json();
-
-      if (!r.ok || !result.success) {
-        throw new Error(result.message || "Save failed");
-      }
-
-      setOffer({
-        enabled: Boolean(result.offer?.enabled ?? offer.enabled),
-        title: result.offer?.title ?? offer.title,
-        message: result.offer?.message ?? offer.message,
-        buttonText: result.offer?.buttonText ?? offer.buttonText,
-        buttonUrl: result.offer?.buttonUrl ?? offer.buttonUrl
-      });
-
-      setNotice("✅ Offer saved successfully. All users will see it.");
-    } catch (e) {
-      setNotice("❌ " + (e.message || "Unable to save offer."));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="admin-panel">
-        <h2>Loading Offers...</h2>
-      </div>
-    );
-  }
-
-  return (
-    <div className="admin-panel offer-manager">
-      <div className="admin-panel-head">
-        <div>
-          <h2>🎁 Offers</h2>
-          <p>Publish an offer popup for all users.</p>
-        </div>
-
-        <label className="offer-toggle">
-          <input
-            type="checkbox"
-            checked={offer.enabled}
-            onChange={(e) =>
-              setOffer({ ...offer, enabled: e.target.checked })
-            }
-          />
-          <span>{offer.enabled ? "LIVE" : "OFF"}</span>
-        </label>
-      </div>
-
-      <form onSubmit={saveOffer} className="offer-form">
-        <label>
-          Offer Title
-          <input
-            value={offer.title}
-            onChange={(e) =>
-              setOffer({ ...offer, title: e.target.value })
-            }
-            placeholder="Special Offer"
-            maxLength={120}
-          />
-        </label>
-
-        <label>
-          Offer Message
-          <textarea
-            value={offer.message}
-            onChange={(e) =>
-              setOffer({ ...offer, message: e.target.value })
-            }
-            placeholder="Enter your offer message..."
-            rows={6}
-            maxLength={1000}
-          />
-        </label>
-
-        <div className="offer-two-col">
-          <label>
-            Button Text
-            <input
-              value={offer.buttonText}
-              onChange={(e) =>
-                setOffer({ ...offer, buttonText: e.target.value })
-              }
-              placeholder="View Offer"
-              maxLength={50}
-            />
-          </label>
-
-          <label>
-            Button URL
-            <input
-              value={offer.buttonUrl}
-              onChange={(e) =>
-                setOffer({ ...offer, buttonUrl: e.target.value })
-              }
-              placeholder="https://..."
-              maxLength={500}
-            />
-          </label>
-        </div>
-
-        <div className="offer-preview">
-          <div className="offer-preview-title">Preview</div>
-          <div className="offer-preview-card">
-            <div className="offer-preview-icon">🎁</div>
-            <h3>{offer.title || "Special Offer"}</h3>
-            <p>
-              {offer.message ||
-                "Your offer message will appear here."}
-            </p>
-            <button type="button">
-              {offer.buttonText || "View Offer"}
-            </button>
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          className="admin-primary-btn"
-          disabled={saving}
-        >
-          {saving ? "Saving..." : "Save & Publish Offer"}
-        </button>
-
-        {notice && (
-          <div className="offer-notice">
-            {notice}
-          </div>
-        )}
-      </form>
-    </div>
-  );
-}
