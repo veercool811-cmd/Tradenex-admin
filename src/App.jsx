@@ -1163,7 +1163,7 @@ function App() {
           )}
 
           {page === "offers" && (
-          <Offers api={API} />
+          <Offers api={api} />
         )}
 
         {page === "support" && (
@@ -2809,16 +2809,16 @@ function Support({ tickets }) {
 
 
 function Offers({ api }) {
-  const [offer, setOffer] = React.useState({
+  const [offer, setOffer] = useState({
     enabled: false,
     title: "",
     message: "",
     buttonText: "",
     buttonUrl: ""
   });
-  const [saving, setSaving] = React.useState(false);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState("");
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const refresh = async () => {
     try {
@@ -2833,7 +2833,7 @@ function Offers({ api }) {
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     refresh();
   }, []);
 
@@ -3000,7 +3000,7 @@ export default App;
 function OfferManager() {
   const API = "https://tradenex-api.onrender.com/api";
 
-  const [offer, setOffer] = React.useState({
+  const [offer, setOffer] = useState({
     enabled: false,
     title: "",
     message: "",
@@ -3008,11 +3008,11 @@ function OfferManager() {
     buttonUrl: ""
   });
 
-  const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
-  const [notice, setNotice] = React.useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState("");
 
-  React.useEffect(() => {
+  useEffect(() => {
     async function load() {
       try {
         const r = await fetch(`${API}/offer?t=${Date.now()}`, {
