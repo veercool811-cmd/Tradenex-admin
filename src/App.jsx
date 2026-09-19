@@ -53,6 +53,9 @@ function App() {
   const [notificationUnread, setNotificationUnread] = useState(0);
   const [notificationOpen, setNotificationOpen] = useState(false);
 
+  const [supportOpenTicketId, setSupportOpenTicketId] =
+    useState(null);
+
   const [selectedUser, setSelectedUser] = useState(null);
   const [userModal, setUserModal] = useState("");
   const [statementUser, setStatementUser] = useState(null);
@@ -116,6 +119,53 @@ function App() {
     }
   }
 
+  async function openAdminNotification(
+    notification
+  ) {
+    if (!notification) return;
+
+    if (!notification.read) {
+      await markNotificationRead(
+        notification.id
+      );
+    }
+
+    setNotificationOpen(false);
+
+    if (
+      notification.type === "support" ||
+      notification.meta?.ticketId
+    ) {
+      setSupportOpenTicketId(
+        notification.meta?.ticketId || null
+      );
+
+      setPage("support");
+      setSidebar(false);
+
+      /*
+       * Refresh support data so a newly-created
+       * ticket is available before opening chat.
+       */
+      try {
+        const result = await api(
+          "/api/admin/support"
+        );
+
+        setSupport(
+          Array.isArray(result.support)
+            ? result.support
+            : []
+        );
+      } catch (error) {
+        console.error(
+          "SUPPORT REFRESH ERROR:",
+          error
+        );
+      }
+    }
+  }
+
   async function markAllNotificationsRead() {
     try {
       const result = await api(
@@ -176,16 +226,126 @@ function App() {
   useEffect(() => {
     if (!logged) return;
 
-    loadAdminData();
-    loadNotifications();
+    let cancelled = false;
+    let initialized = false;
+    let knownIds = new Set();
 
-    const notificationTimer = setInterval(
-      loadNotifications,
-      30000
+    async function pollAdminNotifications() {
+      if (cancelled) return;
+
+      try {
+        const result = await api(
+          "/api/admin/notifications"
+        );
+
+        if (cancelled || !result?.success) {
+          return;
+        }
+
+        const list = Array.isArray(
+          result.notifications
+        )
+          ? result.notifications
+          : [];
+
+        setNotifications(list);
+
+        setNotificationUnread(
+          Number(result.unreadCount || 0)
+        );
+
+        const currentIds = new Set(
+          list.map((item) =>
+            String(item.id)
+          )
+        );
+
+        if (initialized) {
+          const hasNew =
+            list.some(
+              (item) =>
+                !knownIds.has(
+                  String(item.id)
+                )
+            );
+
+          if (hasNew) {
+            playTradenexAdminNotificationSound();
+
+            try {
+              if (
+                "vibrate" in navigator
+              ) {
+                navigator.vibrate([
+                  180,
+                  80,
+                  180,
+                ]);
+              }
+            } catch {}
+          }
+        }
+
+        knownIds = currentIds;
+        initialized = true;
+      } catch (error) {
+        console.error(
+          "NOTIFICATIONS LOAD ERROR:",
+          error
+        );
+      }
+    }
+
+    loadAdminData();
+    pollAdminNotifications();
+
+    const notificationTimer =
+      setInterval(
+        pollAdminNotifications,
+        10000
+      );
+
+    const unlockAudio = () => {
+      try {
+        const AudioCtx =
+          window.AudioContext ||
+          window.webkitAudioContext;
+
+        if (!AudioCtx) return;
+
+        const ctx = new AudioCtx();
+
+        if (
+          ctx.state ===
+          "suspended"
+        ) {
+          ctx.resume().catch(() => {});
+        }
+
+        setTimeout(() => {
+          try {
+            ctx.close();
+          } catch {}
+        }, 500);
+      } catch {}
+    };
+
+    window.addEventListener(
+      "pointerdown",
+      unlockAudio,
+      { once: true }
     );
 
     return () => {
-      clearInterval(notificationTimer);
+      cancelled = true;
+      clearInterval(
+        notificationTimer
+      );
+
+      window.removeEventListener(
+        "pointerdown",
+        unlockAudio
+      );
     };
   }, [logged]);
 
@@ -642,6 +802,36 @@ function App() {
     }
   }
 
+  async function deleteDeposit(deposit) {
+    const confirmed = window.confirm(
+      `Delete this deposit of ${money(deposit.amount)}?\\n\\nIf approved, the user's balance, total deposit and referral commissions will be reversed.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      setMessage("");
+
+      const result = await api(
+        `/api/admin/deposits/${deposit.id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      setMessage(
+        result.message || "Deposit deleted."
+      );
+
+      await loadAdminData();
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (!logged) {
     return (
       <AdminLogin
@@ -938,13 +1128,9 @@ function App() {
                           <button
                             key={notification.id}
                             onClick={() => {
-                              if (
-                                !notification.read
-                              ) {
-                                markNotificationRead(
-                                  notification.id
-                                );
-                              }
+                              openAdminNotification(
+                                notification
+                              );
                             }}
                             style={{
                               width: "100%",
@@ -1167,7 +1353,15 @@ function App() {
         )}
 
         {page === "support" && (
-            <Support tickets={support} />
+            <Support
+              tickets={support}
+              openTicketId={
+                supportOpenTicketId
+              }
+              onTicketOpened={() =>
+                setSupportOpenTicketId(null)
+              }
+            />
           )}
         </section>
 
@@ -1750,8 +1944,42 @@ function Users({
   return (
     <div className="admin-panel">
       <div className="admin-panel-head">
-        <h3>All Users</h3>
-        <span>{users.length} users</span>
+        <div>
+          <h3>All Users</h3>
+          <span>{users.length} users</span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            const backup = {
+              exportedAt: new Date().toISOString(),
+              totalUsers: users.length,
+              users: users,
+            };
+
+            const blob = new Blob(
+              [JSON.stringify(backup, null, 2)],
+              { type: "application/json" }
+            );
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+
+            link.href = url;
+            link.download =
+              `tradenex-users-backup-${new Date()
+                .toISOString()
+                .slice(0, 10)}.json`;
+
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+          }}
+        >
+          Backup Users
+        </button>
       </div>
 
       {!users.length ? (
@@ -2024,38 +2252,47 @@ function Deposits({
                     </td>
 
                     <td>
-                      {d.status ===
-                      "Pending" ? (
-                        <div className="actions">
-                          <button
-                            className="approve"
-                            disabled={loading}
-                            onClick={() =>
-                              action(
-                                `/api/admin/deposits/${d.id}/approve`,
-                                "Deposit approved."
-                              )
-                            }
-                          >
-                            Approve
-                          </button>
+                      <div className="actions">
+                        {d.status === "Pending" && (
+                          <>
+                            <button
+                              className="approve"
+                              disabled={loading}
+                              onClick={() =>
+                                action(
+                                  `/api/admin/deposits/${d.id}/approve`,
+                                  "Deposit approved."
+                                )
+                              }
+                            >
+                              Approve
+                            </button>
 
-                          <button
-                            className="reject"
-                            disabled={loading}
-                            onClick={() =>
-                              action(
-                                `/api/admin/deposits/${d.id}/reject`,
-                                "Deposit rejected."
-                              )
-                            }
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      ) : (
-                        "-"
-                      )}
+                            <button
+                              className="reject"
+                              disabled={loading}
+                              onClick={() =>
+                                action(
+                                  `/api/admin/deposits/${d.id}/reject`,
+                                  "Deposit rejected."
+                                )
+                              }
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+
+                        <button
+                          className="reject"
+                          disabled={loading}
+                          onClick={() =>
+                            deleteDeposit(d)
+                          }
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -2327,21 +2564,53 @@ function SourceBadge({ source }) {
 ===================================================== */
 
 function Rewards({ users }) {
-  const eligible = users.filter(
-    (u) =>
-      (u.referrals || [])
-        .length >= 3
+  const eligible = users.filter((u) =>
+    (u.referrals || []).filter(
+      (r) => r.qualifying === true
+    ).length >= 3
   );
 
-  const totalRewards =
-    users.reduce(
-      (sum, u) =>
-        sum +
-        Number(
-          u.referralReward || 0
-        ),
-      0
-    );
+  const totalRewards = users.reduce(
+    (sum, u) =>
+      sum + Number(u.referralReward || 0),
+    0
+  );
+
+  const totalReferralVolume = users.reduce(
+    (sum, u) =>
+      sum + Number(u.referralVolume || 0),
+    0
+  );
+
+  const milestones = [
+    {
+      id: "iphone",
+      volume: 10000,
+      reward: "iPhone",
+    },
+    {
+      id: "bullet",
+      volume: 20000,
+      reward: "Royal Enfield Bullet",
+    },
+    {
+      id: "car",
+      volume: 50000,
+      reward: "Maruti Swift / Baleno / Hyundai i20",
+    },
+  ];
+
+  const milestoneStats = milestones.map(
+    (milestone) => ({
+      ...milestone,
+      users: users.filter((u) =>
+        Array.isArray(u.referralMilestones) &&
+        u.referralMilestones.some(
+          (m) => m.id === milestone.id
+        )
+      ).length,
+    })
+  );
 
   return (
     <div className="admin-panel">
@@ -2355,10 +2624,9 @@ function Rewards({ users }) {
         </h1>
 
         <p>
-          Users with 3 or more
-          successful referrals can
-          withdraw their referral
-          reward.
+          Multi-level commissions and milestone
+          rewards based on approved qualifying
+          referral deposits.
         </p>
       </div>
 
@@ -2371,9 +2639,113 @@ function Rewards({ users }) {
 
         <AdminStat
           icon="🎁"
-          title="Total Reward Balance"
+          title="Total Commission Balance"
           value={money(totalRewards)}
         />
+
+        <AdminStat
+          icon="📊"
+          title="Total Referral Volume"
+          value={money(totalReferralVolume)}
+        />
+      </div>
+
+      <div className="admin-panel">
+        <div className="admin-page-head">
+          <span>
+            COMMISSION STRUCTURE
+          </span>
+
+          <h2>
+            5-Level Referral Commission
+          </h2>
+
+          <p>
+            Commission is credited only after
+            an approved qualifying deposit.
+          </p>
+        </div>
+
+        <div className="reward-summary">
+          <AdminStat
+            icon="1️⃣"
+            title="Level 1"
+            value="10%"
+          />
+
+          <AdminStat
+            icon="2️⃣"
+            title="Level 2"
+            value="2%"
+          />
+
+          <AdminStat
+            icon="3️⃣"
+            title="Level 3"
+            value="1%"
+          />
+
+          <AdminStat
+            icon="4️⃣"
+            title="Level 4"
+            value="1%"
+          />
+
+          <AdminStat
+            icon="5️⃣"
+            title="Level 5"
+            value="1%"
+          />
+        </div>
+
+        <div className="referral-info">
+          Total possible commission across
+          Levels 1–5: <strong>15%</strong>
+        </div>
+
+        <div className="referral-info">
+          Minimum qualifying deposit:
+          <strong> $1,000 USDT</strong>
+        </div>
+
+        <div className="referral-info">
+          Withdrawal unlock:
+          <strong> 3 qualifying referrals</strong>
+        </div>
+      </div>
+
+      <div className="admin-panel">
+        <div className="admin-page-head">
+          <span>
+            MILESTONES
+          </span>
+
+          <h2>
+            Referral Milestone Rewards
+          </h2>
+
+          <p>
+            Milestones use combined qualifying
+            referral deposit volume.
+          </p>
+        </div>
+
+        <div className="reward-summary">
+          {milestoneStats.map((m) => (
+            <AdminStat
+              key={m.id}
+              icon={
+                m.id === "iphone"
+                  ? "📱"
+                  : m.id === "bullet"
+                  ? "🏍️"
+                  : "🚗"
+              }
+              title={`$${m.volume.toLocaleString()} — ${m.reward}`}
+              value={`${m.users} earned`}
+            />
+          ))}
+        </div>
       </div>
 
       {!users.length ? (
@@ -2388,21 +2760,44 @@ function Rewards({ users }) {
                 <th>User</th>
                 <th>Referral Code</th>
                 <th>Referrals</th>
-                <th>Reward</th>
+                <th>Qualifying</th>
+                <th>Volume</th>
+                <th>Commission</th>
+                <th>Milestones</th>
                 <th>Eligibility</th>
               </tr>
             </thead>
 
             <tbody>
               {users.map((u) => {
+                const referrals =
+                  Array.isArray(u.referrals)
+                    ? u.referrals
+                    : [];
+
                 const count =
-                  (
-                    u.referrals ||
-                    []
+                  referrals.length;
+
+                const qualifyingCount =
+                  referrals.filter(
+                    (r) =>
+                      r.qualifying === true
                   ).length;
 
+                const volume =
+                  Number(
+                    u.referralVolume || 0
+                  );
+
+                const earnedMilestones =
+                  Array.isArray(
+                    u.referralMilestones
+                  )
+                    ? u.referralMilestones
+                    : [];
+
                 const ok =
-                  count >= 3;
+                  qualifyingCount >= 3;
 
                 return (
                   <tr key={u.id}>
@@ -2422,17 +2817,38 @@ function Rewards({ users }) {
 
                     <td>
                       <span className="ref-code">
-                        {u.referralCode ||
-                          "-"}
+                        {u.referralCode || "-"}
                       </span>
                     </td>
 
-                    <td>{count}</td>
+                    <td>
+                      {count}
+                    </td>
+
+                    <td>
+                      {qualifyingCount}
+                    </td>
+
+                    <td>
+                      {money(volume)}
+                    </td>
 
                     <td>
                       {money(
                         u.referralReward
                       )}
+                    </td>
+
+                    <td>
+                      {earnedMilestones.length
+                        ? earnedMilestones
+                            .map(
+                              (m) =>
+                                m.reward ||
+                                m.id
+                            )
+                            .join(", ")
+                        : "—"}
                     </td>
 
                     <td>
@@ -2442,7 +2858,7 @@ function Rewards({ users }) {
                         </span>
                       ) : (
                         <span className="reward-lock">
-                          🔒 {3 - count} more
+                          🔒 {3 - qualifyingCount} more
                         </span>
                       )}
                     </td>
@@ -2537,13 +2953,42 @@ function Transactions({
    SUPPORT
 ===================================================== */
 
-function Support({ tickets }) {
+function Support({
+  tickets,
+  openTicketId = null,
+  onTicketOpened = null,
+}) {
   const [items, setItems] = useState(tickets || []);
   const [selected, setSelected] = useState(null);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    setItems(tickets || []);
+  }, [tickets]);
+
+  useEffect(() => {
+    if (!openTicketId) return;
+
+    const ticket = items.find(
+      (item) =>
+        String(item.id) ===
+        String(openTicketId)
+    );
+
+    if (ticket) {
+      setSelected(ticket);
+
+      if (typeof onTicketOpened === "function") {
+        onTicketOpened();
+      }
+    }
+  }, [
+    openTicketId,
+    items,
+  ]);
 
   async function sendReply() {
     if (!selected || !reply.trim()) {
@@ -2973,6 +3418,66 @@ function Status({ status }) {
 /* =====================================================
    PAGE TITLE
 ===================================================== */
+
+function playTradenexAdminNotificationSound() {
+  try {
+    const AudioCtx =
+      window.AudioContext ||
+      window.webkitAudioContext;
+
+    if (!AudioCtx) return;
+
+    const ctx = new AudioCtx();
+
+    const tone = (frequency, start, duration) => {
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      oscillator.type = "sine";
+      oscillator.frequency.value = frequency;
+
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(
+        0.18,
+        start + 0.02
+      );
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        start + duration
+      );
+
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+
+      oscillator.start(start);
+      oscillator.stop(start + duration);
+    };
+
+    const startSound = () => {
+      const now = ctx.currentTime;
+
+      tone(880, now, 0.16);
+      tone(1174, now + 0.13, 0.22);
+    };
+
+    if (ctx.state === "suspended") {
+      ctx.resume().then(startSound).catch(() => {});
+    } else {
+      startSound();
+    }
+
+    setTimeout(() => {
+      try {
+        ctx.close();
+      } catch {}
+    }, 1000);
+  } catch (error) {
+    console.log(
+      "Admin notification sound skipped:",
+      error
+    );
+  }
+}
 
 function adminTitle(page) {
   const titles = {
