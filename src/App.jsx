@@ -1492,222 +1492,476 @@ function App() {
         </div>
       )}
       {userModal === "statement" && statementUser && (
-        <div
-          className="admin-modal-backdrop"
-          onClick={closeUserStatement}
-        >
+        <div className="admin-modal-backdrop" onClick={closeUserStatement}>
           <div
             className="admin-modal"
-            style={{ maxWidth: "1100px", width: "96%" }}
+            style={{ maxWidth: "1200px", width: "96%", maxHeight: "92vh", overflowY: "auto" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="admin-modal-head">
-              <div>
-                <h2>Account Statement</h2>
-                <p>
-                  {statementUser.name ||
-                    `${statementUser.firstName || ""} ${
-                      statementUser.lastName || ""
-                    }`.trim() ||
-                    "User"}
-                  {" • "}
-                  {statementUser.id}
-                </p>
-              </div>
+            {(() => {
+              const uid = String(statementUser.id);
 
-              <button
-                type="button"
-                onClick={closeUserStatement}
-              >
-                ✕
-              </button>
-            </div>
+              const userDeposits = deposits.filter(
+                (d) => String(d.userId) === uid
+              );
 
-            <div
-              className="admin-stats"
-              style={{
-                gridTemplateColumns:
-                  "repeat(auto-fit,minmax(150px,1fr))",
-                marginBottom: "20px",
-              }}
-            >
-              <AdminStat
-                icon="💰"
-                title="Total Deposit"
-                value={money(
-                  deposits
-                    .filter(
+              const approvedDeposits = userDeposits.filter(
+                (d) => String(d.status).toLowerCase() === "approved"
+              );
+
+              const pendingDeposits = userDeposits.filter(
+                (d) => String(d.status).toLowerCase() === "pending"
+              );
+
+              const totalInvested = approvedDeposits.reduce(
+                (sum, d) => sum + Number(d.amount || 0),
+                0
+              );
+
+              const pendingAmount = pendingDeposits.reduce(
+                (sum, d) => sum + Number(d.amount || 0),
+                0
+              );
+
+              const userWithdrawals = withdrawals.filter(
+                (w) => String(w.userId) === uid
+              );
+
+              const approvedWithdrawals = userWithdrawals.filter(
+                (w) => String(w.status).toLowerCase() === "approved"
+              );
+
+              const totalWithdrawn = approvedWithdrawals.reduce(
+                (sum, w) => sum + Number(w.amount || 0),
+                0
+              );
+
+              const userTransactions = transactions
+                .filter((t) => String(t.userId) === uid)
+                .sort(
+                  (a, b) =>
+                    new Date(b.createdAt || b.date || 0) -
+                    new Date(a.createdAt || a.date || 0)
+                );
+
+              const directReferrals = Array.isArray(statementUser.referrals)
+                ? statementUser.referrals.map((ref) => {
+                    const child = users.find(
+                      (u) => String(u.id) === String(ref.userId)
+                    );
+
+                    const childDeposits = deposits.filter(
                       (d) =>
-                        d.userId === statementUser.id &&
-                        d.status === "Approved"
-                    )
-                    .reduce(
-                      (sum, d) =>
-                        sum + Number(d.amount || 0),
+                        String(d.userId) === String(ref.userId) &&
+                        String(d.status).toLowerCase() === "approved"
+                    );
+
+                    const childInvested = childDeposits.reduce(
+                      (sum, d) => sum + Number(d.amount || 0),
                       0
-                    )
-                )}
-              />
+                    );
 
-              <AdminStat
-                icon="📈"
-                title="Total Profit"
-                value={money(statementUser.profit)}
-              />
+                    return {
+                      ...ref,
+                      child,
+                      childInvested,
+                    };
+                  })
+                : [];
 
-              <AdminStat
-                icon="💸"
-                title="Total Withdrawal"
-                value={money(
-                  withdrawals
-                    .filter(
-                      (w) =>
-                        w.userId === statementUser.id &&
-                        w.status === "Approved"
-                    )
-                    .reduce(
-                      (sum, w) =>
-                        sum + Number(w.amount || 0),
-                      0
-                    )
-                )}
-              />
+              const parent = users.find((u) =>
+                Array.isArray(u.referrals) &&
+                u.referrals.some(
+                  (ref) => String(ref.userId) === uid
+                )
+              );
 
-              <AdminStat
-                icon="🎁"
-                title="Referral Reward"
-                value={money(
-                  statementUser.referralReward
-                )}
-              />
+              return (
+                <>
+                  <div className="admin-modal-head">
+                    <div>
+                      <h2>👤 User Account Details</h2>
+                      <p>
+                        {statementUser.name ||
+                          statementUser.email ||
+                          "User"}{" "}
+                        • {statementUser.id}
+                      </p>
+                    </div>
 
-              <AdminStat
-                icon="💵"
-                title="Current Balance"
-                value={money(statementUser.balance)}
-              />
-            </div>
+                    <button
+                      type="button"
+                      onClick={closeUserStatement}
+                    >
+                      ✕
+                    </button>
+                  </div>
 
-            <div className="admin-panel">
-              <div className="admin-panel-head">
-                <h3>Transaction History</h3>
-                <span>
-                  {
-                    transactions.filter(
-                      (t) =>
-                        t.userId ===
-                        statementUser.id
-                    ).length
-                  } records
-                </span>
-              </div>
+                  {/* MONEY SUMMARY */}
+                  <div
+                    className="admin-stats"
+                    style={{
+                      gridTemplateColumns:
+                        "repeat(auto-fit,minmax(160px,1fr))",
+                      marginBottom: "20px",
+                    }}
+                  >
+                    <AdminStat
+                      icon="💰"
+                      title="Total Invested"
+                      value={money(totalInvested)}
+                    />
 
-              <div className="admin-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Type</th>
-                      <th>Method</th>
-                      <th>Status</th>
-                      <th>Amount</th>
-                    </tr>
-                  </thead>
+                    <AdminStat
+                      icon="⏳"
+                      title="Pending Deposit"
+                      value={money(pendingAmount)}
+                    />
 
-                  <tbody>
-                    {transactions
-                      .filter(
-                        (t) =>
-                          t.userId ===
-                          statementUser.id
-                      )
-                      .sort(
-                        (a, b) =>
-                          new Date(
-                            b.createdAt
-                          ) -
-                          new Date(
-                            a.createdAt
-                          )
-                      )
-                      .map((t) => (
-                        <tr key={t.id || t.txnId}>
-                          <td>
-                            {t.createdAt
-                              ? new Date(
-                                  t.createdAt
-                                ).toLocaleString()
-                              : "-"}
-                          </td>
+                    <AdminStat
+                      icon="💸"
+                      title="Total Withdrawn"
+                      value={money(totalWithdrawn)}
+                    />
 
-                          <td>
-                            <b>{t.type || "-"}</b>
-                          </td>
+                    <AdminStat
+                      icon="💵"
+                      title="Current Balance"
+                      value={money(statementUser.balance)}
+                    />
 
-                          <td>
-                            {t.method ||
-                              t.network ||
-                              "-"}
-                          </td>
+                    <AdminStat
+                      icon="📈"
+                      title="Profit"
+                      value={money(statementUser.profit)}
+                    />
 
-                          <td>
-                            {t.status || "-"}
-                          </td>
+                    <AdminStat
+                      icon="🎁"
+                      title="Referral Reward"
+                      value={money(statementUser.referralReward)}
+                    />
 
-                          <td>
-                            {money(t.amount)}
-                          </td>
-                        </tr>
-                      ))}
+                    <AdminStat
+                      icon="👥"
+                      title="Referral Volume"
+                      value={money(statementUser.referralVolume)}
+                    />
+                  </div>
 
-                    {!transactions.some(
-                      (t) =>
-                        t.userId ===
-                        statementUser.id
-                    ) && (
-                      <tr>
-                        <td
-                          colSpan="5"
-                          style={{
-                            textAlign: "center",
-                          }}
-                        >
-                          No transaction records found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  {/* BASIC USER INFORMATION */}
+                  <div className="admin-panel" style={{ marginBottom: "18px" }}>
+                    <div className="admin-panel-head">
+                      <h3>📋 User Information</h3>
+                    </div>
 
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "10px",
-                marginTop: "18px",
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                type="button"
-                onClick={closeUserStatement}
-              >
-                Close
-              </button>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fit,minmax(220px,1fr))",
+                        gap: "12px",
+                        padding: "16px",
+                      }}
+                    >
+                      <div>
+                        <b>Name</b>
+                        <div>{statementUser.name || "—"}</div>
+                      </div>
 
-              <button
-                type="button"
-                onClick={printUserStatement}
-              >
-                🖨️ Download / Save PDF
-              </button>
-            </div>
+                      <div>
+                        <b>User ID</b>
+                        <div style={{ wordBreak: "break-all" }}>
+                          {statementUser.id || "—"}
+                        </div>
+                      </div>
+
+                      <div>
+                        <b>Email</b>
+                        <div>{statementUser.email || "—"}</div>
+                      </div>
+
+                      <div>
+                        <b>Mobile</b>
+                        <div>{statementUser.mobile || "—"}</div>
+                      </div>
+
+                      <div>
+                        <b>Referral Code</b>
+                        <div>{statementUser.referralCode || "—"}</div>
+                      </div>
+
+                      <div>
+                        <b>Account Status</b>
+                        <div>
+                          {statementUser.status || "Active"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* REFERRAL STRUCTURE */}
+                  <div className="admin-panel" style={{ marginBottom: "18px" }}>
+                    <div className="admin-panel-head">
+                      <h3>🌳 Referral Structure</h3>
+                    </div>
+
+                    <div style={{ padding: "16px" }}>
+                      <div
+                        style={{
+                          padding: "12px",
+                          borderRadius: "10px",
+                          marginBottom: "14px",
+                          background: "rgba(255,255,255,0.04)",
+                        }}
+                      >
+                        <b>⬆️ Direct Referrer</b>
+                        <div style={{ marginTop: "6px" }}>
+                          {parent ? (
+                            <>
+                              <strong>
+                                {parent.name || parent.email || "User"}
+                              </strong>
+                              <div style={{ fontSize: "12px", opacity: 0.75 }}>
+                                {parent.id}
+                              </div>
+                            </>
+                          ) : (
+                            "No direct referrer found"
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <b>⬇️ Users Under This User</b>
+
+                        {directReferrals.length === 0 ? (
+                          <div style={{ marginTop: "10px", opacity: 0.7 }}>
+                            No direct referrals found.
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              overflowX: "auto",
+                              marginTop: "10px",
+                            }}
+                          >
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>User</th>
+                                  <th>User ID</th>
+                                  <th>Invested</th>
+                                  <th>Qualifying Volume</th>
+                                  <th>Status</th>
+                                </tr>
+                              </thead>
+
+                              <tbody>
+                                {directReferrals.map((ref, index) => (
+                                  <tr key={String(ref.userId || index)}>
+                                    <td>
+                                      {ref.child?.name ||
+                                        ref.child?.email ||
+                                        "Unknown User"}
+                                    </td>
+
+                                    <td style={{ fontSize: "12px" }}>
+                                      {ref.userId || "—"}
+                                    </td>
+
+                                    <td>
+                                      {money(ref.childInvested)}
+                                    </td>
+
+                                    <td>
+                                      {money(ref.qualifyingVolume)}
+                                    </td>
+
+                                    <td>
+                                      {ref.qualifying
+                                        ? "✅ Qualified"
+                                        : "⏳ Not Qualified"}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DEPOSIT / INVESTMENT HISTORY */}
+                  <div className="admin-panel" style={{ marginBottom: "18px" }}>
+                    <div className="admin-panel-head">
+                      <h3>💰 Investment / Deposit History</h3>
+                      <span>
+                        {userDeposits.length} records
+                      </span>
+                    </div>
+
+                    <div className="admin-table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>Amount</th>
+                            <th>Method</th>
+                            <th>Transaction ID</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {userDeposits
+                            .slice()
+                            .sort(
+                              (a, b) =>
+                                new Date(b.createdAt || b.date || 0) -
+                                new Date(a.createdAt || a.date || 0)
+                            )
+                            .map((d, index) => (
+                              <tr key={d.id || index}>
+                                <td>
+                                  {d.createdAt || d.date
+                                    ? new Date(
+                                        d.createdAt || d.date
+                                      ).toLocaleString()
+                                    : "—"}
+                                </td>
+
+                                <td>
+                                  <strong>
+                                    {money(d.amount)}
+                                  </strong>
+                                </td>
+
+                                <td>
+                                  {d.method ||
+                                    d.network ||
+                                    d.type ||
+                                    "—"}
+                                </td>
+
+                                <td
+                                  style={{
+                                    maxWidth: "180px",
+                                    wordBreak: "break-all",
+                                    fontSize: "12px",
+                                  }}
+                                >
+                                  {d.txId ||
+                                    d.transactionId ||
+                                    "—"}
+                                </td>
+
+                                <td>
+                                  {d.status || "—"}
+                                </td>
+                              </tr>
+                            ))}
+
+                          {userDeposits.length === 0 && (
+                            <tr>
+                              <td colSpan="5" style={{ textAlign: "center" }}>
+                                No deposit records found.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* TRANSACTION HISTORY */}
+                  <div className="admin-panel">
+                    <div className="admin-panel-head">
+                      <h3>📊 Transaction History</h3>
+                      <span>
+                        {userTransactions.length} records
+                      </span>
+                    </div>
+
+                    <div className="admin-table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Method</th>
+                            <th>Status</th>
+                            <th>Amount</th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {userTransactions.map((t, index) => (
+                            <tr key={t.id || index}>
+                              <td>
+                                {t.createdAt || t.date
+                                  ? new Date(
+                                      t.createdAt || t.date
+                                    ).toLocaleString()
+                                  : "—"}
+                              </td>
+
+                              <td>{t.type || "—"}</td>
+                              <td>{t.method || "—"}</td>
+                              <td>{t.status || "—"}</td>
+                              <td>
+                                <strong>
+                                  {money(t.amount)}
+                                </strong>
+                              </td>
+                            </tr>
+                          ))}
+
+                          {userTransactions.length === 0 && (
+                            <tr>
+                              <td
+                                colSpan="5"
+                                style={{ textAlign: "center" }}
+                              >
+                                No transaction records found.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: "10px",
+                      marginTop: "18px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={closeUserStatement}
+                    >
+                      Close
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={printUserStatement}
+                    >
+                      🖨️ Download / Save PDF
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
-
       </main>
     </div>
   );
