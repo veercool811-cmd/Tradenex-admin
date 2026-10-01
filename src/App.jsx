@@ -1297,6 +1297,9 @@ function App() {
           {page === "users" && (
             <Users
               users={users}
+              deposits={deposits}
+              withdrawals={withdrawals}
+              transactions={transactions}
               openUserEdit={openUserEdit}
               openUserStatement={openUserStatement}
               openUserPassword={(user) => {
@@ -2188,6 +2191,9 @@ function AdminStat({
 
 function Users({
   users,
+  deposits,
+  withdrawals,
+  transactions,
   openUserEdit,
   openUserStatement,
   openUserPassword,
@@ -2195,6 +2201,51 @@ function Users({
   toggleUserStatus,
   deleteUser,
 }) {
+  function getUserName(u) {
+    return (
+      u.name ||
+      `${u.firstName || ""} ${u.lastName || ""}`.trim() ||
+      u.email ||
+      "User"
+    );
+  }
+
+  function approvedDeposits(userId) {
+    return deposits
+      .filter(
+        (d) =>
+          String(d.userId) === String(userId) &&
+          String(d.status).toLowerCase() === "approved"
+      )
+      .reduce((sum, d) => sum + Number(d.amount || 0), 0);
+  }
+
+  function pendingDeposits(userId) {
+    return deposits
+      .filter(
+        (d) =>
+          String(d.userId) === String(userId) &&
+          String(d.status).toLowerCase() === "pending"
+      )
+      .reduce((sum, d) => sum + Number(d.amount || 0), 0);
+  }
+
+  function approvedWithdrawals(userId) {
+    return withdrawals
+      .filter(
+        (w) =>
+          String(w.userId) === String(userId) &&
+          String(w.status).toLowerCase() === "approved"
+      )
+      .reduce((sum, w) => sum + Number(w.amount || 0), 0);
+  }
+
+  function transactionCount(userId) {
+    return transactions.filter(
+      (t) => String(t.userId) === String(userId)
+    ).length;
+  }
+
   return (
     <div className="admin-panel">
       <div className="admin-panel-head">
@@ -2209,7 +2260,7 @@ function Users({
             const backup = {
               exportedAt: new Date().toISOString(),
               totalUsers: users.length,
-              users: users,
+              users,
             };
 
             const blob = new Blob(
@@ -2246,132 +2297,155 @@ function Users({
             <thead>
               <tr>
                 <th>User</th>
-                <th>Email</th>
-                <th>Mobile</th>
-                <th>Balance</th>
+                <th>Contact</th>
+                <th>Total Invested</th>
+                <th>Pending Deposit</th>
+                <th>Total Withdrawal</th>
                 <th>Profit</th>
                 <th>Reward</th>
-                <th>Referral Code</th>
+                <th>Balance</th>
                 <th>Referrals</th>
                 <th>Status</th>
-                <th>Created</th>
                 <th>Actions</th>
               </tr>
             </thead>
 
             <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td>
-                    <b>
-                      {u.name ||
-                        `${u.firstName || ""} ${
-                          u.lastName || ""
-                        }`.trim() ||
-                        "User"}
-                    </b>
-                    <small>{u.id}</small>
-                  </td>
+              {users.map((u) => {
+                const invested = approvedDeposits(u.id);
+                const pending = pendingDeposits(u.id);
+                const withdrawn = approvedWithdrawals(u.id);
 
-                  <td>{u.email || "-"}</td>
+                return (
+                  <tr key={u.id}>
+                    <td>
+                      <b>{getUserName(u)}</b>
+                      <small>{u.id}</small>
+                    </td>
 
-                  <td>
-                    {u.mobile || u.phone || "-"}
-                  </td>
+                    <td>
+                      <div>{u.email || "-"}</div>
+                      <small>{u.mobile || u.phone || "-"}</small>
+                    </td>
 
-                  <td>{money(u.balance)}</td>
+                    <td>
+                      <strong>{money(invested)}</strong>
+                    </td>
 
-                  <td>{money(u.profit)}</td>
+                    <td>
+                      {pending > 0
+                        ? money(pending)
+                        : "—"}
+                    </td>
 
-                  <td>{money(u.referralReward)}</td>
+                    <td>
+                      <strong>{money(withdrawn)}</strong>
+                    </td>
 
-                  <td>
-                    <span className="ref-code">
-                      {u.referralCode || "-"}
-                    </span>
-                  </td>
+                    <td>
+                      {money(u.profit)}
+                    </td>
 
-                  <td>
-                    {(u.referrals || []).length}
-                  </td>
+                    <td>
+                      {money(u.referralReward)}
+                    </td>
 
-                  <td>
-                    <span>
-                      {u.status || "Active"}
-                    </span>
-                  </td>
+                    <td>
+                      <strong>{money(u.balance)}</strong>
+                    </td>
 
-                  <td>
-                    {u.createdAt
-                      ? new Date(
-                          u.createdAt
-                        ).toLocaleDateString()
-                      : "-"}
-                  </td>
+                    <td>
+                      <b>{(u.referrals || []).length}</b>
+                      <small>
+                        {money(u.referralVolume || 0)}
+                      </small>
+                    </td>
 
-                  <td>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "6px",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => openUserEdit(u)}
+                    <td>
+                      <span>
+                        {u.status || "Active"}
+                      </span>
+                    </td>
+
+                    <td>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "6px",
+                          flexWrap: "wrap",
+                          minWidth: "280px",
+                        }}
                       >
-                        Edit
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openUserStatement(u)
+                          }
+                        >
+                          👁️ View Details
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openUserPassword(u)
-                        }
-                      >
-                        Password
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openUserEdit(u)
+                          }
+                        >
+                          Edit
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openUserBalance(u)
-                        }
-                      >
-                        Balance
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openUserPassword(u)
+                          }
+                        >
+                          Password
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openUserStatement(u)
-                        }
-                      >
-                        Statement
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openUserBalance(u)
+                          }
+                        >
+                          Balance
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          toggleUserStatus(u)
-                        }
-                      >
-                        {u.status === "Inactive"
-                          ? "Activate"
-                          : "Deactivate"}
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            toggleUserStatus(u)
+                          }
+                        >
+                          {u.status === "Inactive"
+                            ? "Activate"
+                            : "Deactivate"}
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => deleteUser(u)}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            deleteUser(u)
+                          }
+                        >
+                          Delete
+                        </button>
+                      </div>
+
+                      <small
+                        style={{
+                          display: "block",
+                          marginTop: "6px",
+                          opacity: 0.7,
+                        }}
                       >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {transactionCount(u.id)} transactions
+                      </small>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -2379,7 +2453,6 @@ function Users({
     </div>
   );
 }
-
 
 /* =====================================================
    DEPOSITS
