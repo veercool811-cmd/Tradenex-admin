@@ -3586,8 +3586,15 @@ function Offers({ api }) {
     title: "",
     message: "",
     buttonText: "",
-    buttonUrl: ""
+    buttonUrl: "",
+    bonusEnabled: false,
+    depositThreshold: 1000,
+    bonusAmount: 0,
+    bonusType: "fixed",
+    termsText: "",
+    termsPdfUrl: ""
   });
+
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -3596,8 +3603,15 @@ function Offers({ api }) {
     try {
       setLoading(true);
       setError("");
+
       const res = await api("/api/admin/offer");
-      if (res?.offer) setOffer(res.offer);
+
+      if (res?.offer) {
+        setOffer((old) => ({
+          ...old,
+          ...res.offer
+        }));
+      }
     } catch (e) {
       setError(e?.message || "Unable to load offer.");
     } finally {
@@ -3610,27 +3624,58 @@ function Offers({ api }) {
   }, []);
 
   const update = (key, value) => {
-    setOffer((old) => ({ ...old, [key]: value }));
+    setOffer((old) => ({
+      ...old,
+      [key]: value
+    }));
   };
 
-  const saveOffer = async (data) => {
+  const saveOffer = async (data, successMessage) => {
     try {
       setSaving(true);
       setError("");
 
+      const payload = {
+        ...data,
+        depositThreshold:
+          Number(data.depositThreshold) || 0,
+        bonusAmount:
+          Number(data.bonusAmount) || 0,
+        bonusEnabled:
+          Boolean(data.bonusEnabled),
+        bonusType:
+          data.bonusType || "fixed",
+        termsText:
+          data.termsText || "",
+        termsPdfUrl:
+          data.termsPdfUrl || ""
+      };
+
       const res = await api("/api/admin/offer", {
         method: "PUT",
-        body: JSON.stringify(data)
+        body: JSON.stringify(payload)
       });
 
       if (!res?.success) {
-        throw new Error(res?.message || "Unable to save offer.");
+        throw new Error(
+          res?.message || "Unable to save offer."
+        );
       }
 
-      setOffer(res.offer || data);
-      alert(data.enabled ? "Offer published successfully." : "Offer turned OFF.");
+      setOffer((old) => ({
+        ...old,
+        ...(res.offer || payload)
+      }));
+
+      alert(
+        successMessage ||
+        "Offer settings saved successfully."
+      );
     } catch (e) {
-      setError(e?.message || "Unable to save offer.");
+      setError(
+        e?.message ||
+        "Unable to save offer."
+      );
     } finally {
       setSaving(false);
     }
@@ -3638,25 +3683,43 @@ function Offers({ api }) {
 
   return (
     <div className="admin-panel">
+
       <div className="admin-panel-head">
         <div>
-          <h2>Offers</h2>
-          <p>Publish an offer that will appear to all users.</p>
+          <h2>🎁 Offers & Promotional Bonus</h2>
+          <p>
+            Offer configure karo. Approved qualifying
+            deposit par bonus automatically apply hoga.
+          </p>
         </div>
-        <span className={offer.enabled ? "admin-status active" : "admin-status"}>
+
+        <span
+          className={
+            offer.enabled
+              ? "admin-status active"
+              : "admin-status"
+          }
+        >
           {offer.enabled ? "LIVE" : "OFF"}
         </span>
       </div>
 
-      {error && <div className="admin-error">{error}</div>}
+      {error && (
+        <div className="admin-error">
+          {error}
+        </div>
+      )}
 
       <div className="offer-form">
+
         <label>
           Offer Title
           <input
             value={offer.title}
-            onChange={(e) => update("title", e.target.value)}
-            placeholder="Special Offer"
+            onChange={(e) =>
+              update("title", e.target.value)
+            }
+            placeholder="1000 USDT Deposit Bonus"
           />
         </label>
 
@@ -3664,17 +3727,133 @@ function Offers({ api }) {
           Offer Message
           <textarea
             value={offer.message}
-            onChange={(e) => update("message", e.target.value)}
-            placeholder="Your offer message will appear here."
-            rows="5"
+            onChange={(e) =>
+              update("message", e.target.value)
+            }
+            placeholder="Deposit and receive promotional bonus."
+            rows="4"
           />
         </label>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit,minmax(220px,1fr))",
+            gap: "16px"
+          }}
+        >
+
+          <label>
+            Minimum Deposit / Threshold
+            <input
+              type="number"
+              min="0"
+              value={offer.depositThreshold}
+              onChange={(e) =>
+                update(
+                  "depositThreshold",
+                  e.target.value
+                )
+              }
+              placeholder="1000"
+            />
+          </label>
+
+          <label>
+            Promotional Bonus
+            <input
+              type="number"
+              min="0"
+              value={offer.bonusAmount}
+              onChange={(e) =>
+                update(
+                  "bonusAmount",
+                  e.target.value
+                )
+              }
+              placeholder="200"
+            />
+          </label>
+
+          <label>
+            Bonus Type
+            <select
+              value={offer.bonusType || "fixed"}
+              onChange={(e) =>
+                update(
+                  "bonusType",
+                  e.target.value
+                )
+              }
+            >
+              <option value="fixed">
+                Fixed Bonus
+              </option>
+            </select>
+          </label>
+
+        </div>
+
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            marginTop: "12px"
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={Boolean(
+              offer.bonusEnabled
+            )}
+            onChange={(e) =>
+              update(
+                "bonusEnabled",
+                e.target.checked
+              )
+            }
+          />
+
+          <span>
+            Enable Automatic Promotional Bonus
+          </span>
+        </label>
+
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "14px",
+            borderRadius: "10px",
+            background:
+              "rgba(255,193,7,0.08)",
+            border:
+              "1px solid rgba(255,193,7,0.2)"
+          }}
+        >
+          <strong>
+            Current Rule:
+          </strong>{" "}
+          {offer.bonusEnabled
+            ? `Approved deposit of ${Number(
+                offer.depositThreshold || 0
+              ).toLocaleString()} or more → ${Number(
+                offer.bonusAmount || 0
+              ).toLocaleString()} promotional bonus`
+            : "Automatic bonus is OFF"}
+        </div>
 
         <label>
           Button Text
           <input
             value={offer.buttonText}
-            onChange={(e) => update("buttonText", e.target.value)}
+            onChange={(e) =>
+              update(
+                "buttonText",
+                e.target.value
+              )
+            }
             placeholder="Claim Offer"
           />
         </label>
@@ -3683,24 +3862,108 @@ function Offers({ api }) {
           Button URL
           <input
             value={offer.buttonUrl}
-            onChange={(e) => update("buttonUrl", e.target.value)}
+            onChange={(e) =>
+              update(
+                "buttonUrl",
+                e.target.value
+              )
+            }
             placeholder="https://tradenex.onrender.com/"
           />
         </label>
 
+        <div
+          style={{
+            marginTop: "20px",
+            borderTop:
+              "1px solid rgba(255,255,255,0.08)",
+            paddingTop: "20px"
+          }}
+        >
+          <h3>
+            📜 Terms & Conditions
+          </h3>
+
+          <label>
+            Terms & Conditions Text
+            <textarea
+              value={offer.termsText}
+              onChange={(e) =>
+                update(
+                  "termsText",
+                  e.target.value
+                )
+              }
+              placeholder="Offer ke Terms & Conditions yahan likhein..."
+              rows="10"
+            />
+          </label>
+
+          <label>
+            Terms & Conditions PDF URL
+            <input
+              value={offer.termsPdfUrl}
+              onChange={(e) =>
+                update(
+                  "termsPdfUrl",
+                  e.target.value
+                )
+              }
+              placeholder="https://..."
+            />
+          </label>
+
+          {offer.termsPdfUrl && (
+            <a
+              href={offer.termsPdfUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: "inline-block",
+                marginTop: "8px"
+              }}
+            >
+              📄 Open Terms & Conditions PDF
+            </a>
+          )}
+        </div>
+
         <div className="offer-actions">
+
           <button
             className="small-button"
-            disabled={saving || loading}
-            onClick={() => saveOffer({ ...offer, enabled: true })}
+            disabled={
+              saving || loading
+            }
+            onClick={() =>
+              saveOffer(
+                {
+                  ...offer,
+                  enabled: true
+                },
+                "Offer published successfully."
+              )
+            }
           >
-            {saving ? "Saving..." : "Publish Offer"}
+            {saving
+              ? "Saving..."
+              : "Publish Offer"}
           </button>
 
           <button
             className="toggle"
-            disabled={saving || loading}
-            onClick={() => saveOffer({ ...offer, enabled: false })}
+            disabled={
+              saving || loading
+            }
+            onClick={() =>
+              saveOffer(
+                {
+                  ...offer,
+                  enabled: false
+                },
+                "Offer turned OFF."
+              )
+            }
           >
             OFF Offer
           </button>
@@ -3712,20 +3975,80 @@ function Offers({ api }) {
           >
             Refresh
           </button>
+
         </div>
       </div>
 
       <div className="offer-preview-box">
-        <div className="offer-preview-badge">PREVIEW</div>
-        <h2>{offer.title || "Your Offer Title"}</h2>
-        <p>{offer.message || "Your offer message will appear here."}</p>
+
+        <div className="offer-preview-badge">
+          PREVIEW
+        </div>
+
+        <h2>
+          {offer.title ||
+            "Your Offer Title"}
+        </h2>
+
+        <p>
+          {offer.message ||
+            "Your offer message will appear here."}
+        </p>
+
+        {offer.bonusEnabled && (
+          <div
+            style={{
+              margin: "12px 0",
+              padding: "12px",
+              borderRadius: "10px",
+              background:
+                "rgba(255,193,7,0.12)"
+            }}
+          >
+            🎁 Deposit{" "}
+            <strong>
+              {Number(
+                offer.depositThreshold || 0
+              ).toLocaleString()}
+            </strong>{" "}
+            → Bonus{" "}
+            <strong>
+              {Number(
+                offer.bonusAmount || 0
+              ).toLocaleString()}
+            </strong>
+          </div>
+        )}
 
         {offer.buttonText && (
           <button className="small-button">
             {offer.buttonText}
           </button>
         )}
+
+        {offer.termsText && (
+          <details
+            style={{
+              marginTop: "18px"
+            }}
+          >
+            <summary>
+              📜 View Terms & Conditions
+            </summary>
+
+            <div
+              style={{
+                whiteSpace: "pre-wrap",
+                marginTop: "10px"
+              }}
+            >
+              {offer.termsText}
+            </div>
+          </details>
+        )}
+
       </div>
+
     </div>
   );
 }
