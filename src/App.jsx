@@ -1646,6 +1646,12 @@ function App() {
                     />
 
                     <AdminStat
+                      icon="🎁"
+                      title="Promotional Bonus"
+                      value={money(statementUser.promotionalBonus || 0)}
+                    />
+
+                    <AdminStat
                       icon="👥"
                       title="Referral Volume"
                       value={money(statementUser.referralVolume)}
@@ -2303,6 +2309,7 @@ function Users({
                 <th>Total Withdrawal</th>
                 <th>Profit</th>
                 <th>Reward</th>
+                <th>Promotional Bonus</th>
                 <th>Balance</th>
                 <th>Referrals</th>
                 <th>Status</th>
@@ -2348,6 +2355,10 @@ function Users({
 
                     <td>
                       {money(u.referralReward)}
+                    </td>
+
+                    <td>
+                      <strong>{money(u.promotionalBonus || 0)}</strong>
                     </td>
 
                     <td>
