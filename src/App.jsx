@@ -66,6 +66,7 @@ function App() {
     aadhaar: "",
     address: "",
     balance: "",
+    promotionalBonus: "",
     password: "",
   });
 
@@ -359,6 +360,7 @@ function App() {
       aadhaar: user.aadhaar || "",
       address: user.address || "",
       balance: user.balance ?? 0,
+      promotionalBonus: user.promotionalBonus ?? 0,
       password: "",
     });
     setUserModal("edit");
@@ -596,6 +598,7 @@ function App() {
             mobile: userForm.mobile,
             aadhaar: userForm.aadhaar,
             address: userForm.address,
+            promotionalBonus: Number(userForm.promotionalBonus || 0),
           }),
         }
       );
@@ -1379,6 +1382,7 @@ function App() {
               ["mobile", "Mobile"],
               ["aadhaar", "Aadhaar"],
               ["address", "Address"],
+              ["promotionalBonus", "Promotional Bonus"],
             ].map(([key, label]) => (
               <input
                 key={key}
