@@ -2855,6 +2855,25 @@ function Withdrawals({
                             Reject
                           </button>
                         </div>
+                      ) : w.status === "Approved" ? (
+                        <button
+                          className="reject"
+                          disabled={loading}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                "This withdrawal was already approved. Reverse it and mark it as Rejected?"
+                              )
+                            ) {
+                              action(
+                                `/api/admin/withdrawals/${w.id}/reverse`,
+                                "Approved withdrawal reversed and rejected."
+                              );
+                            }
+                          }}
+                        >
+                          Reverse & Reject
+                        </button>
                       ) : (
                         "-"
                       )}
