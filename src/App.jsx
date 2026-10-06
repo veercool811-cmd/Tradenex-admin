@@ -3613,7 +3613,6 @@ function Support({
    STATUS
 ===================================================== */
 
-
 function Offers({ api }) {
   const [offer, setOffer] = useState({
     enabled: false,
@@ -3626,9 +3625,9 @@ function Offers({ api }) {
     bonusAmount: 0,
     bonusType: "fixed",
     termsText: "",
-    termsPdfUrl: ""
+    termsPdfUrl: "",
+    bannerImageUrl: ""
   });
-
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -3671,20 +3670,14 @@ function Offers({ api }) {
 
       const payload = {
         ...data,
-        depositThreshold:
-          Number(data.depositThreshold) || 0,
-        bonusAmount:
-          Number(data.bonusAmount) || 0,
-        bonusEnabled:
-          Boolean(data.bonusEnabled),
-        bonusType:
-          data.bonusType || "fixed",
-        termsText:
-          data.termsText || "",
-        termsPdfUrl:
-          data.termsPdfUrl || ""
+        depositThreshold: Number(data.depositThreshold) || 0,
+        bonusAmount: Number(data.bonusAmount) || 0,
+        bonusEnabled: Boolean(data.bonusEnabled),
+        bonusType: data.bonusType || "fixed",
+        termsText: data.termsText || "",
+        termsPdfUrl: data.termsPdfUrl || "",
+        bannerImageUrl: data.bannerImageUrl || ""
       };
-
       const res = await api("/api/admin/offer", {
         method: "PUT",
         body: JSON.stringify(payload)
@@ -3934,6 +3927,14 @@ function Offers({ api }) {
           </label>
 
           <label>
+          <label>
+            Dashboard Banner Image URL
+            <input
+              value={offer.bannerImageUrl || ""}
+              onChange={(e) => update("bannerImageUrl", e.target.value)}
+              placeholder="https://.../banner.jpg"
+            />
+          </label>
             Terms & Conditions PDF URL
             <input
               value={offer.termsPdfUrl}
